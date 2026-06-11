@@ -9,34 +9,42 @@ An end-to-end, event-driven Video on Demand (VOD) streaming platform built with 
 
 The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
 
+# nexuSTream
+
+An end-to-end, event-driven Video on Demand (VOD) streaming platform built with a microservices architecture. The platform supports multi-bitrate HLS transcoding, asynchronous event processing, real-time status updates, and scalable token validation.
+
+---
+
+## 🏗 System Architecture & Workflow
+
+The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
+
 ```mermaid
 sequenceDiagram
 autonumber
-    actor Client as Web Client (React)
-    participant Core as Core Service (Spring Boot)
-    participant Kafka as Kafka Broker
-    participant Proc as Video Processor (Node.js)
-    participant S3 as Storage (MinIO/S3)
-    participant Gateway as Notification Gateway (Node.js)
+actor Client as Web Client (React)
+participant Core as Core Service (Spring Boot)
+participant Kafka as Kafka Broker
+participant Proc as Video Processor (Node.js)
+participant S3 as Storage (MinIO/S3)
+participant Gateway as Notification Gateway (Node.js)
 
-    Client->>Core: 1. Upload Video & Metadata
-    Core->>Kafka: 3. Send "VIDEO_UPLOADED" Event
-    
-    activate Proc
-    Kafka->>Proc: 4. Pulls Raw Video Payload
-    Proc->>S3: Transcodes & Pushes HLS Streams (.m3u8, .ts)
-    Proc->>Kafka: 5. Sends "TRANSCODING_COMPLETE" Event
-    deactivate Proc
+Client->>Core: 1. Upload Video & Metadata
+Core->>Kafka: 3. Send "VIDEO_UPLOADED" Event
 
-    Kafka->>Core: Update Database (Status: READY)
-    
-    activate Gateway
-    Kafka->>Gateway: Broadcast Event to Gateway
-    Gateway->>Client: Send Real-Time Push Notification (Socket.io)
-    deactivate Gateway
+activate Proc
+Kafka->>Proc: 4. Pulls Raw Video Payload
+Proc->>S3: Transcodes & Pushes HLS Streams (.m3u8, .ts)
+Proc->>Kafka: 5. Sends "TRANSCODING_COMPLETE" Event
+deactivate Proc
 
+Kafka->>Core: Update Database (Status: READY)
+
+activate Gateway
+Kafka->>Gateway: Broadcast Event to Gateway
+Gateway->>Client: Send Real-Time Push Notification (Socket.io)
+deactivate Gateway
 ```
-
 ---
 
 ## 📂 Repository Structure
