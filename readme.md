@@ -9,8 +9,9 @@ An end-to-end, event-driven Video on Demand (VOD) streaming platform built with 
 
 The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
 
-```
-sequenceDiagram
+```mermaid
+    sequenceDiagram
+    autonumber
     actor Client as Web Client (React)
     participant Core as Core Service (Spring Boot)
     participant Kafka as Kafka Broker
@@ -41,7 +42,7 @@ sequenceDiagram
 ## 📂 Repository Structure
 
 ```text
-nexuSTream/
+nexus-video-vod/
 ├── infrastructure/nginx/      # Nginx Routing Proxy
 ├── redis/                     # Token Denylist & Session Store
 └── services/
