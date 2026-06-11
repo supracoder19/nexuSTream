@@ -1,23 +1,8 @@
-```markdown
-# nexuSTream
+# nexuSTREAM
 
 An end-to-end, event-driven Video on Demand (VOD) streaming platform built with a microservices architecture. The platform supports multi-bitrate HLS transcoding, asynchronous event processing, real-time status updates, and scalable token validation.
 
 ---
-
-## 🏗 System Architecture & Workflow
-
-The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
-
-# nexuSTream
-
-An end-to-end, event-driven Video on Demand (VOD) streaming platform built with a microservices architecture. The platform supports multi-bitrate HLS transcoding, asynchronous event processing, real-time status updates, and scalable token validation.
-
----
-
-## 🏗 System Architecture & Workflow
-
-The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
 
 ## 🏗 System Architecture & Workflow
 
@@ -25,70 +10,101 @@ The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchro
 
 ```mermaid
 sequenceDiagram
-autonumber
-actor Client as Web Client (React)
-participant Core as Core Service (Spring Boot)
-participant Kafka as Kafka Broker
-participant Proc as Video Processor (Node.js)
-participant S3 as Storage (MinIO/S3)
-participant Gateway as Notification Gateway (Node.js)
+    autonumber
+    actor Client as Web Client (React)
+    participant Core as Core Service (Spring Boot)
+    participant Kafka as Kafka Broker
+    participant Proc as Video Processor (Node.js)
+    participant S3 as Storage (MinIO/S3)
+    participant Gateway as Notification Gateway (Node.js)
 
-Client->>Core: Upload Video & Metadata
-Note over Core, S3: (Step 2: Core saves raw video to S3 if applicable)
-Core->>Kafka: Send "VIDEO_UPLOADED" Event
-
-activate Proc
-Kafka->>Proc: Pulls Raw Video Payload
-Proc->>S3: Transcodes & Pushes HLS Streams (.m3u8, .ts)
-Proc->>Kafka: Sends "TRANSCODING_COMPLETE" Event
-deactivate Proc
-
-Kafka->>Core: Update Database (Status: READY)
-
-activate Gateway
-Kafka->>Gateway: Broadcast Event to Gateway
-Gateway->>Client: Send Real-Time Push Notification (Socket.io)
-deactivate Gateway
+    Client->>Core: Upload Video & Metadata
+    Note over Core,S3: Core saves raw video to S3
+    Core->>Kafka: Send "VIDEO_UPLOADED" Event
+    
+    activate Proc
+    Kafka->>Proc: Pull Raw Video Payload
+    Proc->>S3: Transcode & Push HLS Streams
+    Proc->>Kafka: Send "TRANSCODING_COMPLETE" Event
+    deactivate Proc
+    
+    Kafka->>Core: Update Database (Status: READY)
+    
+    activate Gateway
+    Kafka->>Gateway: Broadcast Event
+    Gateway->>Client: Send Real-Time Push Notification
+    deactivate Gateway
 ```
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technologies |
+|-------|--------------|
+| **Frontend** | React (Vite), Tailwind CSS, Hls.js |
+| **Backend** | Spring Boot (Java), Node.js (Express) |
+| **Event Streaming** | Apache Kafka |
+| **Caching** | Redis |
+| **Storage** | Cloudfare R2 |
+| **Processing** | FFmpeg |
+
 ---
 
 ## 📂 Repository Structure
 
 ```text
 nexus-video-vod/
-├── infrastructure/nginx/      # Nginx Routing Proxy
-├── redis/                     # Token Denylist & Session Store
+├── infrastructure/
+│   └── nginx/                 # Nginx reverse proxy
+├── redis/                     # Token denylist & session store
 └── services/
-    ├── core-service/          # SPRING BOOT: Auth & Metadata DB Writer
-    │   ├── src/main/java/     # Core Application Logic
-    │   └── pom.xml            # Maven Dependencies
-    │
-    ├── notification-gateway/  # NODE.JS: Socket.io WS Gateway
-    │   ├── src/middleware/    # Token validation via Redis
-    │   ├── src/kafka/         # Event Consumers
-    │   └── package.json       # Node Dependencies
-    │
-    └── web-client/            # REACT: Frontend UI (Vite)
-        └── src/components/    # VideoUploader & HLS VideoPlayer
-
+    ├── core-service/          # Spring Boot - Auth & metadata
+    │   ├── src/main/java/
+    │   └── pom.xml
+    ├── video-processor/       # Node.js - FFmpeg transcoding
+    │   ├── src/workers/
+    │   └── package.json
+    ├── notification-gateway/  # Node.js - WebSocket gateway
+    │   ├── src/middleware/
+    │   ├── src/kafka/
+    │   └── package.json
+    └── web-client/            # React - Frontend UI
+        └── src/components/
 ```
 
 ---
 
 ## 🔒 Security & Token Verification Lifecycle
 
-To scale real-time traffic effortlessly, authentication processing is split between services:
-
-1. **Issue:** The `web-client` authenticates directly against the Spring Boot `core-service`, which generates a cryptographically signed JSON Web Token (JWT).
-2. **Cache:** Active or blacklisted token records are maintained in a shared, high-performance **Redis** cache instance.
-3. **Validate:** When a persistent WebSocket handshake hits the Node.js `notification-gateway`, its `auth.middleware.js` queries **Redis** directly to evaluate the token's validity. If the signature is expired or blocked, it triggers a refresh prompt sequence back to the frontend.
+| Step | Action |
+|------|--------|
+| **1. Issue** | `web-client` authenticates with `core-service` → receives JWT |
+| **2. Cache** | JWT stored in Redis (active/blacklisted tokens) |
+| **3. Validate** | `notification-gateway` queries Redis during WebSocket handshake |
+| **4. Reject/Refresh** | If token invalid/expired, gateway triggers refresh prompt |
 
 ---
 
 ## 🎥 Video Delivery Details
 
-* **HLS Transcoding:** The raw input uploads are picked up by the execution worker layout, generating dynamic multi-bitrate HTTP Live Streaming segments via a wrapper running **FFmpeg**.
-* **Adaptive Streaming UI:** The web client loads stream segments incrementally tracking the video's index `.m3u8` manifest file, scaling resolution dynamically based on network bandwidth constraints.
+| Feature | Implementation |
+|---------|----------------|
+| **HLS Transcoding** | FFmpeg generates multi-bitrate HTTP Live Streaming segments |
+| **Adaptive Streaming** | Video.js loads `.m3u8` manifest, adjusts quality based on bandwidth |
+| **Event Flow** | Upload → Kafka → Transcode → HLS → Notification → Playback |
 
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone repository
+git clone https://github.com/supracoder19/nexuSTream
+
+# Start services with Docker Compose
+docker-compose up -d
 
 ```
+
+---
