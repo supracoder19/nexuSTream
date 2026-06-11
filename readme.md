@@ -10,8 +10,8 @@ An end-to-end, event-driven Video on Demand (VOD) streaming platform built with 
 The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
 
 ```mermaid
-    sequenceDiagram
-    autonumber
+sequenceDiagram
+autonumber
     actor Client as Web Client (React)
     participant Core as Core Service (Spring Boot)
     participant Kafka as Kafka Broker
@@ -77,6 +77,5 @@ To scale real-time traffic effortlessly, authentication processing is split betw
 * **HLS Transcoding:** The raw input uploads are picked up by the execution worker layout, generating dynamic multi-bitrate HTTP Live Streaming segments via a wrapper running **FFmpeg**.
 * **Adaptive Streaming UI:** The web client loads stream segments incrementally tracking the video's index `.m3u8` manifest file, scaling resolution dynamically based on network bandwidth constraints.
 
-```
 
 ```
