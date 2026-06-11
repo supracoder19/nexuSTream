@@ -1,0 +1,22 @@
+FROM node:22-alpine
+
+# Install FFmpeg and FFprobe binaries globally within Alpine system bin
+RUN apk add --no-cache ffmpeg
+
+WORKDIR /app/video-processor
+
+COPY package*.json ./
+
+# # Install only production assets to save disk footprint during image building
+# RUN npm ci --only=production
+RUN npm i
+COPY . .
+
+# Ensure the local workspace caching directory is physically present
+RUN mkdir -p temp-storage
+
+EXPOSE 4781
+
+# CMD [ "npx", "nodemon", "src/workers/transcoding.worker.js" ]
+
+CMD [ "npm","run","start" ]

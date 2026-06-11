@@ -1,0 +1,23 @@
+{
+  "name": "video-processor",
+  "version": "1.0.0",
+  "main": "src/workers/transcoding.worker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/workers/transcoding.worker.js",
+    "dev": "nodemon -L src/workers/transcoding.worker.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "axios": "^1.16.1",
+    "config": "^4.4.1",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "fluent-ffmpeg": "^2.1.3",
+    "kafkajs": "^2.2.4",
+    "nodemon": "^3.1.14"
+  }
+}

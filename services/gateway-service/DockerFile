@@ -1,0 +1,6 @@
+FROM node:22-alpine as build
+WORKDIR /app/gateway-service
+COPY package.json ./package.json
+RUN npm i
+EXPOSE 3050
+COPY ./src ./src

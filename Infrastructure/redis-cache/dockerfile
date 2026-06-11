@@ -1,0 +1,10 @@
+FROM redis:7.4-alpine
+
+# Copy your custom config
+COPY redis.conf /usr/local/etc/redis/redis.conf
+
+# Ensure the log and data directories have correct permissions
+RUN chown redis:redis /usr/local/etc/redis/redis.conf
+
+# Run Redis using the config file
+CMD [ "redis-server", "/usr/local/etc/redis/redis.conf" ]

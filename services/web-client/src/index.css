@@ -1,0 +1,8 @@
+@import "tailwindcss";
+/* Tailwind v4 uses CSS variables for themes */
+@theme {
+  --color-brand: #2563eb;
+}
+
+/* Ensure the dark variant is tied to the .dark selector */
+@variant dark (&:where(.dark, .dark *));

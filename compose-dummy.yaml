@@ -1,0 +1,174 @@
+services:
+  core-service:
+    build:
+      context: ./services/core-service
+      dockerfile: dockerfile
+    ports:
+      - "3000:10000"
+    volumes: 
+      - ./services/core-service:/builder/core-service
+    env_file:
+      - ./services/core-service/.env
+    networks:
+      - nexus-network 
+
+  gateway-service:
+    build:
+      context: ./services/gateway-service
+      dockerfile: DockerFile
+    ports:
+      - "3050:3050"
+    depends_on:
+      - core-service
+      - kafka
+      - redis-cache
+    volumes: 
+      - ./services/gateway-service:/app/gateway-service
+      - /app/gateway-service/node_modules
+    command: npm run test                          # Changed 'test' to 'dev' for live coding
+    networks:
+      - nexus-network
+
+  web-client:
+    build: 
+      context: ./services/web-client
+      dockerfile: DockerFile
+    depends_on:
+      - gateway-service
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./services/web-client/.env
+    volumes:
+      - ./services/web-client:/app/web-client
+      - /app/web-client/node_modules
+    networks:
+      - nexus-network
+
+  nginx-iac:
+    build:
+      context: ./Infrastructure/nginx
+      dockerfile: Dockerfile
+    depends_on:
+      - web-client
+    ports:
+      - "8081:80"  # Changed from 8080 to 8081 because Kafka UI might conflict
+    volumes:
+      - ./Infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    restart: always
+    networks:
+      - nexus-network
+
+  redis-cache:
+    build: 
+      context: ./Infrastructure/redis-cache
+      dockerfile: dockerfile
+    volumes:
+      - redis_data:/data
+      - ./Infrastructure/redis-cache/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: always
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - nexus-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio_r2_simulator
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+      MINIO_SERVER_URL: "http://localhost:9000"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - nexus-network
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka_broker
+    ports:
+      - "9092:9092" # For host machine interaction (EXTERNAL)
+    environment:
+       KAFKA_KRAFT_MODE: "true"
+       KAFKA_PROCESS_ROLES: controller,broker
+       KAFKA_NODE_ID: 1
+       KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+       
+       # 1. Update listeners to include both internal (9094) and external (9092)
+       KAFKA_LISTENERS: INTERNAL://0.0.0.0:9094,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+       
+       # 2. Map how clients will access Kafka
+       # Containers on the same network will use internal:9094. Your host machine uses localhost:9092.
+       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9094,EXTERNAL://localhost:9092
+       
+       KAFKA_LOG_DIRS: /var/lib/kafka/data
+       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+       KAFKA_LOG_RETENTION_HOURS: 168
+       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+       CLUSTER_ID: "fQEKGPQsQtSJMUICvEYA9g"
+    networks:
+      - nexus-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kafka_data:/var/lib/kafka/data
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka_ui
+    ports:
+      - "9600:8080" # Mapping host 9600 to container 8080
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9094 # Use INTERNAL listener
+    networks:
+      - nexus-network
+  video-processor:
+    build:
+      context: ./services/video-processor
+      dockerfile: DockerFile
+    container_name: video-processor-service
+    ports:
+      - "4781:4781"
+    volumes:
+      - ./services/video-processor/:/app/video-processor/
+      - ./services/video-processor-service/temp-storage:/app/video-processor/temp-storage # Mount local disk to inspect processing steps
+      - /app/video-processor/node_modules
+    environment:
+      - PORT=4781
+    networks:
+      - nexus-network
+    depends_on:
+      - kafka
+    command: npm run dev
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'Waiting for MinIO...'; sleep 1; done;
+      /usr/bin/mc mb myminio/nexustream --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/nexustream;
+      exit 0;
+      "
+    networks:
+      - nexus-network
+
+networks:
+  nexus-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  minio_data:
+  kafka_data:

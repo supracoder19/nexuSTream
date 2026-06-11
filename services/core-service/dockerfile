@@ -1,0 +1,10 @@
+FROM maven:3.8.5-openjdk-17
+WORKDIR /builder/core-service
+# We only copy the pom first to cache dependencies
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+COPY . .
+RUN mvn clean
+# Run using the spring-boot maven plugin instead of a static JAR
+CMD ["./mvnw", "spring-boot:run"]
