@@ -1,5 +1,5 @@
 ```markdown
-# nexus-video-vod
+# nexuSTream
 
 An end-to-end, event-driven Video on Demand (VOD) streaming platform built with a microservices architecture. The platform supports multi-bitrate HLS transcoding, asynchronous event processing, real-time status updates, and scalable token validation.
 
@@ -9,9 +9,8 @@ An end-to-end, event-driven Video on Demand (VOD) streaming platform built with 
 
 The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
 
-```mermaid
+```
 sequenceDiagram
-    autonumber
     actor Client as Web Client (React)
     participant Core as Core Service (Spring Boot)
     participant Kafka as Kafka Broker
@@ -42,7 +41,7 @@ sequenceDiagram
 ## 📂 Repository Structure
 
 ```text
-nexus-video-vod/
+nexuSTream/
 ├── infrastructure/nginx/      # Nginx Routing Proxy
 ├── redis/                     # Token Denylist & Session Store
 └── services/
