@@ -19,6 +19,10 @@ An end-to-end, event-driven Video on Demand (VOD) streaming platform built with 
 
 The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
 
+## 🏗 System Architecture & Workflow
+
+The architecture is entirely decoupled, leveraging **Apache Kafka** for asynchronous event messaging and **Redis** for lightweight state tracking.
+
 ```mermaid
 sequenceDiagram
 autonumber
@@ -29,13 +33,14 @@ participant Proc as Video Processor (Node.js)
 participant S3 as Storage (MinIO/S3)
 participant Gateway as Notification Gateway (Node.js)
 
-Client->>Core: 1. Upload Video & Metadata
-Core->>Kafka: 3. Send "VIDEO_UPLOADED" Event
+Client->>Core: Upload Video & Metadata
+Note over Core, S3: (Step 2: Core saves raw video to S3 if applicable)
+Core->>Kafka: Send "VIDEO_UPLOADED" Event
 
 activate Proc
-Kafka->>Proc: 4. Pulls Raw Video Payload
+Kafka->>Proc: Pulls Raw Video Payload
 Proc->>S3: Transcodes & Pushes HLS Streams (.m3u8, .ts)
-Proc->>Kafka: 5. Sends "TRANSCODING_COMPLETE" Event
+Proc->>Kafka: Sends "TRANSCODING_COMPLETE" Event
 deactivate Proc
 
 Kafka->>Core: Update Database (Status: READY)
