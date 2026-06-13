@@ -103,7 +103,7 @@ nexus-video-vod/
 git clone https://github.com/supracoder19/nexuSTream
 
 # Start services with Docker Compose
-docker-compose up -d
+docker-compose up -f compose-dummt.yaml -d
 
 ```
 

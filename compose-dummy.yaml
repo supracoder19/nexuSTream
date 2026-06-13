@@ -1,3 +1,4 @@
+name: nexus-stream-development
 services:
   core-service:
     build:
@@ -8,7 +9,7 @@ services:
     volumes: 
       - ./services/core-service:/builder/core-service
     env_file:
-      - ./services/core-service/.env
+      - ./services/core-service/.env.dummy
     networks:
       - nexus-network 
 
@@ -38,7 +39,7 @@ services:
     ports:
       - "4000:4000"
     env_file:
-      - ./services/web-client/.env
+      - ./services/web-client/.env.dummy
     volumes:
       - ./services/web-client:/app/web-client
       - /app/web-client/node_modules
@@ -143,8 +144,8 @@ services:
       - ./services/video-processor/:/app/video-processor/
       - ./services/video-processor-service/temp-storage:/app/video-processor/temp-storage # Mount local disk to inspect processing steps
       - /app/video-processor/node_modules
-    environment:
-      - PORT=4781
+    env_file:
+      - ./services/video-processor/.env.dummy
     networks:
       - nexus-network
     depends_on:
@@ -163,12 +164,24 @@ services:
       "
     networks:
       - nexus-network
-
+  db-service:
+    image: mariadb:11.8.8-noble
+    container_name: db-service
+    ports:
+      - "10023:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=root
+      - MARIADB_DATABASE=supradb
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - nexus-network
 networks:
   nexus-network:
     driver: bridge
 
 volumes:
+  mariadb_data:
   redis_data:
   minio_data:
   kafka_data:
