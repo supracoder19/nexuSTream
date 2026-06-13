@@ -1,7 +1,7 @@
-const { S3Client, GetObjectCommand, PutObjectCommand,DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const fs = require('fs');
-const path = require('path');
-const { Readable } = require('stream');
+import { S3Client, GetObjectCommand, PutObjectCommand,DeleteObjectCommand }  from '@aws-sdk/client-s3'
+import path from "path"
+import fs from "fs"
+import { Readable } from 'stream'
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1', // MinIO requires a placeholder region
@@ -122,4 +122,4 @@ const deleteFromS3 = async (videoKey) => {
     throw error;
   }
 };
-module.exports = { downloadFromS3, uploadFolderToS3,deleteFromS3 };
+export { downloadFromS3, uploadFolderToS3, deleteFromS3 };

@@ -1,45 +1,24 @@
-require('dotenv').config();
-const express = require('express');
-const { Kafka } = require('kafkajs');
-const path = require('path');
-const fs = require('fs');
+import path from "path"
+import fs from "fs"
+import { fileURLToPath } from "url";
+import { analyzeVideo } from '../utils/video-analyzer.js'
+import { transcodeToHLS } from '../services/ffmpeg.service.js';
+import { downloadFromS3, uploadFolderToS3, deleteFromS3 } from '../services/s3.service.js';
+import { pushTask } from "../services/RedisService.js"
 
-const { analyzeVideo } = require('../utils/video-analyzer');
-const { transcodeToHLS } = require('../services/ffmpeg.service');
-const { downloadFromS3, uploadFolderToS3, deleteFromS3 } = require('../services/s3.service');
-const { error } = require('console');
-const axios  = require('axios');
+const topicForProcessed = process.env.TOPIC_VIDEO_PROCESSED
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.json());
-
-// Express Health Check Route for Render
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'UP', service: 'video-processor' });
-});
-
-// Kafka Configuration 
-const kafka = new Kafka({ 
-  clientId: 'video-processor',
-  brokers: [process.env.KAFKA_BROKER],
-});
-const consumer = kafka.consumer({ groupId: `video-processor-group` });
-const producer = kafka.producer();
-
-/**
- * Core processing routine triggered by Kafka messages.
- */
 const processVideoJob = async (videoData) => {
-  const videoKey=videoData.value
-  const videoId=videoData.key
+  const videoKey = videoData.value
+  const videoId = videoData.key
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
   const localInputPath = path.join(__dirname, `../../temp-storage/${videoId}_input.mp4`);
   const localOutputDir = path.join(__dirname, `../../temp-storage/${videoId}_output`);
 
   try {
     console.log(`========== Starting Processing Job: ${videoKey} ==========`);
-    
+
     // 1. Fetch raw asset from Cloud
     console.log(`Downloading input file from S3: ${videoKey}...`);
     await downloadFromS3(videoKey, localInputPath);
@@ -56,38 +35,19 @@ const processVideoJob = async (videoData) => {
     const s3OutputPrefix = `${videoId}/processed`;
     console.log(`Uploading output manifest and segments to S3 prefix: ${s3OutputPrefix}...`);
     await uploadFolderToS3(localOutputDir, s3OutputPrefix);
-    
+
     console.log(`Deleting from S3: ${videoKey}...`);
     await deleteFromS3(videoKey)
-    await producer.connect();
-
-    // 2. Send the message
-    await producer.send({
-      topic: 'videoProcessed',
-      messages: [
-        { 
-          key: videoId ,
-          value: JSON.stringify(videoData)
-        }
-      ],
-    });
-    await producer.disconnect()
-    // const res=await axios.post(`${process.env.BACKEND_URL}video/processed`,
-    //   {
-    //     videoId,
-    //     outputPath:`processed/${videoId}/playlist.m3u8`
-    //   },
-    //   {
-    //     withCredentials:true,
-    //     headers:{
-    //       token:process.env.BACKEND_TOKEN
-    //     }
-    //   }
-    // )
-    // if(!res.data.success)
-    // {
-    //   throw new Error(res.data.msg) 
-    // }
+    const msg =
+    {
+      "topic": topicForProcessed,
+      "event":
+      {
+        key: videoId,
+        value: `${videoId}/processed`
+      }
+    }
+    await pushTask(topicForProcessed, msg)
     console.log(`========== Job ${videoId} Successfully Completed ==========`);
 
   } catch (error) {
@@ -100,38 +60,4 @@ const processVideoJob = async (videoData) => {
   }
 };
 
-/**
- * Initializes and loops the Kafka polling ecosystem.
- */
-const startWorker = async () => {
-  await consumer.connect();
-  await consumer.subscribe({ topic: 'videoUploaded', fromBeginning: false });
-  console.log('Kafka Consumer subscribed to [videoUploaded] topic.');
-
-  await consumer.run({
-    // CRITICAL: Forces Kafka to wait for the previous promise to resolve before serving the next message.
-    partitionsConsumedConcurrently: 1, 
-    
-    eachMessage: async ({ topic, partition, message }) => {
-      const request = {
-          key:message.key.toString(),
-          value:message.value.toString().replaceAll("\"","")
-        }
-      try {
-        // const payload = JSON.parse(request)
-        console.log(request)
-        // Awaiting this wrapper forces a absolute sequential queue execution loop
-        await processVideoJob(request);
-      } catch (parseError) {
-        // console.log(parseError)
-        console.error('Failed to parse incoming Kafka message payload:', messageValue);
-      }
-    },
-  });
-};
-
-// Fire up Servers
-app.listen(PORT, () => {
-  console.log(`Express status server bound to port ${PORT}`);
-  startWorker().catch(err => console.error('Fatal initialization error in Kafka consumer:', err));
-});
+export default processVideoJob

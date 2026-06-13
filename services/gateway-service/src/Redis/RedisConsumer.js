@@ -1,21 +1,31 @@
-import { Kafka } from 'kafkajs';
-const kafka= new Kafka({
-  clientId: 'notification-gateway',
-  brokers: [process.env.KAFKA_BROKER || 'localhost:9092']
-});
-const consumer = kafka.consumer({ groupId: 'notification-group' });
+import {redis} from "./RedisConfig.js"
 
-export const startKafkaConsumer = async (io) => {
-  await consumer.connect();
-  await consumer.subscribe({ topic: 'notification', fromBeginning: false });
+const topicForNotification = process.env.TOPIC_NOTIFICATION
+export async function startConsumer(io) {
+    console.log("Worker is waiting for tasks...");
+    while (true) {
+        try {
+            const result = await redis.brpop('queue:'+topicForNotification, 0);
+            
+            if (result) {
+                const msg = JSON.parse(result[1]);
+                
+                await handleTasks(io,msg.event.value);
+            }
+        } catch (error) {
+            console.error("Error processing queue:", error);
+            // Wait a moment before retrying if there's a connection failure
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+    }
+}
 
-  await consumer.run({
-    eachMessage: async ({ topic, partition, message }) => {
-      try {
-        // console.log("message",message.key,message.value)
-        const event = JSON.parse(message.value.toString());
-        console.log(message.key.toString(),message.value.toString());
-        if (event.type === 'video ready') {
+
+const handleTasks = async (io,event)=>
+{
+  console.log(event);
+  
+   if (event.type === 'video ready') {
           const { actorId, actorName } = event;
           const {videoTitle} = event.metadata
 
@@ -44,9 +54,8 @@ export const startKafkaConsumer = async (io) => {
         if (event.type === 'video liked') {
           const { actorId, actorName } = event;
           const {videoTitle,ownerId} = event.metadata
-
           // --- 1. Notify the Uploader ---
-          io.to(`user:${ownerId}`).emit('notification', {
+          io.to(`user:${ownerId}`).emit('notification', { //not working
             type: 'VIDEO_LIKED',
             content: `Your video "${videoTitle}" was liked by ${actorName}!`,
             createdAt: new Date()
@@ -55,7 +64,8 @@ export const startKafkaConsumer = async (io) => {
         if (event.type === 'channel subscribed') {
           const { actorId, actorName } = event;
           const {ownerId} = event.metadata
-
+          console.log(`user:${ownerId}`,'channel subscribed');
+          
           // --- 1. Notify the Uploader ---
           io.to(`user:${ownerId}`).emit('notification', {
             type: 'CHANNEL_SUBSCRIBED',
@@ -74,9 +84,4 @@ export const startKafkaConsumer = async (io) => {
             createdAt: new Date()
           });
         }
-      } catch (err) {
-        console.error("Error processing event payload:", err);
-      }
-    },
-  });
-};
+}

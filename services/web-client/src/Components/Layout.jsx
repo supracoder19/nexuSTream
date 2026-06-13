@@ -54,8 +54,8 @@ const Layout = ({  isDarkMode, setIsDarkMode }) => {
     fetchNotificationHistory();
 
     // B. Establish WebSocket connection for Real-Time stream additions
-    const socketInstance = io(gateway_api, {
-      path: import.meta.env.VITE_GATEWAY_URL,
+    const socketInstance = io(`${import.meta.env.VITE_GATEWAY_HOST?import.meta.env.VITE_GATEWAY_HOST:""}`, {
+      path: `${import.meta.env.VITE_GATEWAY_SOCKET?import.meta.env.VITE_GATEWAY_SOCKET:"/apiV2/socket.io"}`,
       withCredentials: true,
     });
 

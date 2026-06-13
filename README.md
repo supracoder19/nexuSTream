@@ -1,4 +1,4 @@
-# nexuSTREAM
+# nexuSTream
 
 An end-to-end, event-driven Video on Demand (VOD) streaming platform built with a microservices architecture. The platform supports multi-bitrate HLS transcoding, asynchronous event processing, real-time status updates, and scalable token validation.
 
@@ -103,7 +103,7 @@ nexus-video-vod/
 git clone https://github.com/supracoder19/nexuSTream
 
 # Start services with Docker Compose
-docker-compose up -f compose-dummt.yaml -d
+docker-compose up -f compose-dummy.yaml -d
 
 ```
 

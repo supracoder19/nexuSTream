@@ -3,7 +3,6 @@ package com.nexuSTream.core_service.Configuration;
 import java.io.IOException;
 import java.util.Arrays;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,14 +18,13 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
 
 @Component
+@AllArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
-
-    @Autowired
     private JwtUtils jwtUtils; // Your custom class to validate & extract claims
 
-    @Autowired
     private CustomUserDetailsService userDetailsService;
 
     // 1. Skip token validation entirely for these endpoints
@@ -47,12 +45,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         // String refreshCookie = request.getCookies().toString();
         Cookie[] cookies=request.getCookies();
         String authHeader = Arrays.stream(cookies != null ? cookies : new Cookie[0])
-        .filter(c -> "Authorization".equals(c.getName()))
+        .filter(c -> "accessToken".equals(c.getName()))
         .map(Cookie::getValue)
         .findFirst()
         .orElse(null); // Returns null if the cookie isn't found
-        if (authHeader != null && authHeader.startsWith("Bearer")) {
-            String jwt = authHeader.substring(6);
+        if (authHeader != null) {
+            String jwt = authHeader;
             String username = jwtUtils.extractUsername(jwt);
             // If we have a username and the user isn't authenticated yet in this request loop
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {

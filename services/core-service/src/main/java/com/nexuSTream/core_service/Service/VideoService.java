@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.nexuSTream.core_service.DTO.CommentProjection;
 import com.nexuSTream.core_service.DTO.Event;
+import com.nexuSTream.core_service.DTO.QueueMessage;
 // import com.nexuSTream.core_service.DTO.Event;
 import com.nexuSTream.core_service.DTO.ResponseObject;
 import com.nexuSTream.core_service.DTO.UnifiedNotificationEvent;
@@ -40,7 +41,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class VideoService {
     private final S3Service s3;
-    private final KafkaService kaf;
+    private final RedisService red;
     private final VideoRepo vRepo;
     private final UserRepo uRepo;
     private final NotificationRepo nrepo;
@@ -50,7 +51,12 @@ public class VideoService {
     private final VideoLikeRepo likeRepo;
     @Value("${S3_BASE_URL}")
     private String BaseUrl ;
-    // private final String tokenCheck = "ABCD";
+
+    @Value("${topic.video.uploaded}")
+    private String videoUploadedTopic;
+
+    @Value("${topic.notification}")
+    private String notificationTopic;
 
     public ResponseObject<?> videoUpload(VideoUploadReq req) {
         ResponseObject<Map<String, String>> res = new ResponseObject<>();
@@ -98,7 +104,8 @@ public class VideoService {
             Video video = vRepo.findById(Long.valueOf(key)).orElse(null);
             if (video != null && !video.isProcessed()) {
                 Event<String> event = new Event<>(key, value);
-                kaf.publish("videoUploaded",event);
+                QueueMessage<String> newMsg=new QueueMessage<>(videoUploadedTopic,event);
+                red.pushTask(newMsg);
                 res.setMsg("video processing started");
             } else {
                 throw new Exception("Either video uploaded or not found");
@@ -148,7 +155,7 @@ public class VideoService {
             likeRepo.save(like);
             Notification n=new Notification();
             n.setType("VIDEO_LIKED");
-            n.setContent("Your video "+video.getTitle()+" was subscribed by "+u.getUsername()+"!");
+            n.setContent("Your video "+video.getTitle()+" was liked by "+u.getUsername()+"!");
             n.setRecipient(video.getChannel().getOwner());
             n.setVideoId(video.getId());
             nrepo.save(n);
@@ -157,7 +164,8 @@ public class VideoService {
             mp.put("ownerId",video.getChannel().getOwner().getId());
             mp.put("videoTitle",video.getTitle());
             UnifiedNotificationEvent notice =  new UnifiedNotificationEvent("video liked",u.getId(),u.getUsername(),null,mp);
-            kaf.publish("notification", new Event<>("video liked",notice));
+            QueueMessage<UnifiedNotificationEvent> newMsg=new QueueMessage<>(notificationTopic,new Event<UnifiedNotificationEvent>("video liked",notice));
+            red.pushTask(newMsg);
         } catch (Exception e) {
             res.setSuccess(false);
             res.setMsg(e.getMessage());
@@ -335,7 +343,8 @@ public class VideoService {
             mp.put("ownerId",video.getChannel().getOwner().getId());
             mp.put("videoTitle",video.getTitle());
             UnifiedNotificationEvent notice =  new UnifiedNotificationEvent("commented",user.getId(),user.getUsername(),null,mp);
-            kaf.publish("notification", new Event<>("video commented",notice));
+            QueueMessage<UnifiedNotificationEvent> newMsg=new QueueMessage<>(notificationTopic,new Event<UnifiedNotificationEvent>("video commented",notice));
+            red.pushTask(newMsg);
         } catch (Exception e) {
             res.setSuccess(false);
             res.setMsg(e.getMessage());

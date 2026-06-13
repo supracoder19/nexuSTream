@@ -8,11 +8,10 @@ import com.nexuSTream.core_service.Repository.SubRepo;
 import com.nexuSTream.core_service.Repository.UserRepo;
 import com.nexuSTream.core_service.utils.JwtUtils; // Your JWT Utility class
 
+import lombok.AllArgsConstructor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -22,43 +21,29 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@AllArgsConstructor
 public class AuthService {
-
-
-    @Autowired
     private AuthenticationManager authenticationManager;
-
-    @Autowired
     private CustomUserDetailsService usd;
-
-    @Autowired
     private JwtUtils jwtUtils;
-
-    @Autowired
     private UserRepo urepo;
-
-    @Autowired
     private ChannelRepo crepo;
-
-    @Autowired
     private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private RedisCache red;
-
-    @Autowired
     private SubRepo srepo;
-    public String viewerCountIncrease()
-    {
+    private RedisService red;
+
+
+
+    public String viewerCountIncrease() {
         try {
-            String data=red.getData("view-count");
-            int cnt=data==null?0:Integer.parseInt(red.getData("view-count"));
-            red.saveData("view-count", String.valueOf(cnt+1));
-            return String.valueOf(cnt+1);
+            String data = red.getAuthData("view-count");
+            int cnt = data == null ? 0 : Integer.parseInt(red.getAuthData("view-count"));
+            red.addAuthData("view-count", String.valueOf(cnt + 1));
+            return String.valueOf(cnt + 1);
         } catch (Exception e) {
             return e.getMessage();
         }
-        
+
     }
 
     public ResponseObject<Map<String, String>> loginService(String username, String password) {
@@ -80,7 +65,8 @@ public class AuthService {
             Map<String, String> mp = new HashMap<>();
             mp.put("accessToken", accessToken);
             mp.put("refreshToken", refreshToken);
-            red.saveData(username, refreshToken);
+            red.deleteAuthData(username);
+            red.addAuthData(username, refreshToken);
             res.setMsg("successfully loggedin");
             res.setData(List.of(mp));
             // 4. Return success response holding the token payload
@@ -127,68 +113,62 @@ public class AuthService {
         }
     }
 
-    public ResponseObject<HashMap<String, String>> refreshService(String refreshToken) {
+    public ResponseObject<HashMap<String, String>> refreshService(String refreshToken, String accessToken) {
         ResponseObject<HashMap<String, String>> ob = new ResponseObject<>();
         try {
-            User user = urepo.findByUsername(String.valueOf(jwtUtils.extractUsername(refreshToken))).orElse(null);
-            // System.out.println(jwtUtils.extractUsername(refreshToken)+" "+refreshToken+" "+user);
-            if (user != null) {
-                String redtoken = red.getData(user.getUsername());
-                if(redtoken==null || !redtoken.equals(refreshToken)) throw new Exception("User Data mismatch");
-                ob.setSuccess(true);
-                ob.setMsg("User authorized");
-                HashMap<String, String> resData = new HashMap<>();
-                resData.put("accessToken", jwtUtils.generateAccessToken(user));
-                resData.put("userName", user.getUsername());
-                resData.put("email", user.getEmail()); 
-                resData.put("userId", String.valueOf(user.getId()));
+            User user = urepo.findByUsername(String.valueOf(jwtUtils.extractUsername(refreshToken)))
+                    .orElseThrow(() -> new Exception("User not found!!!"));
 
-                Channel channel = user.getChannel();
+            String redtoken = red.getAuthData(user.getUsername());
+            if(!redtoken.equals(refreshToken)) throw new Exception("user unauthorized");
+            ob.setSuccess(true);
+            ob.setMsg("User authorized");
+            HashMap<String, String> resData = new HashMap<>();
+            resData.put("accessToken", jwtUtils.generateAccessToken(user));
+            resData.put("userName", user.getUsername());
+            resData.put("email", user.getEmail());
+            resData.put("userId", String.valueOf(user.getId()));
 
-                if(channel !=null)
-                {resData.put("channelName", channel.getChannelName());
+            Channel channel = user.getChannel();
+
+            if (channel != null) {
+                resData.put("channelName", channel.getChannelName());
                 resData.put("channelDesc", channel.getDescription());
                 resData.put("subscriberCount", String.valueOf(srepo.countByChannelId(channel.getId())));
-                }
-
-                ob.setData(List.of(resData));
-                return ob;
-            } else {
-                throw new Exception("User unauthorized");
             }
+
+            ob.setData(List.of(resData));
+            return ob;
         } catch (Exception e) {
             ob.setMsg(e.getMessage());
             ob.setSuccess(false);
             return ob;
         }
     }
-    public ResponseObject<?> updateUser(Map<String,String> req)
-    {
-        ResponseObject<String> res= new ResponseObject<>();
+
+    public ResponseObject<?> updateUser(Map<String, String> req) {
+        ResponseObject<String> res = new ResponseObject<>();
         try {
-            Authentication auth=authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(getUserName(), req.get("oldPassword")));
-            User user=(User) auth.getPrincipal();
-            if(req.get("channelName")!=null)
-            {
+            Authentication auth = authenticationManager
+                    .authenticate(new UsernamePasswordAuthenticationToken(getUserName(), req.get("oldPassword")));
+            User user = (User) auth.getPrincipal();
+            if (req.get("channelName") != null) {
                 user.getChannel().setChannelName(req.get("channelName"));
             }
-            if(req.get("channelDesc")!=null)
-            {
+            if (req.get("channelDesc") != null) {
                 user.getChannel().setDescription(req.get("channelDesc"));
             }
-            if(req.get("email")!=null)
-            {
+            if (req.get("email") != null) {
                 user.setEmail(req.get("email"));
             }
-            if(req.get("newPassword")!=null)
-            {
+            if (req.get("newPassword") != null) {
                 user.setPassword(passwordEncoder.encode(req.get("newPassword")));
             }
             urepo.save(user);
             res.setMsg("successfully Updated");
         } catch (Exception e) {
-           res.setMsg(e.getMessage());
-           res.setSuccess(false);
+            res.setMsg(e.getMessage());
+            res.setSuccess(false);
         }
         return res;
     }
@@ -200,7 +180,7 @@ public class AuthService {
             if (user.getUsername() != null) {
                 ob.setSuccess(true);
                 ob.setMsg("User Loggedout");
-                red.deleteData(user.getUsername());
+                red.deleteAuthData(user.getUsername());
                 return ob;
             } else {
                 throw new Exception("User Not found");
@@ -211,16 +191,16 @@ public class AuthService {
             return ob;
         }
     }
-    public String getUserName()
-    {
+
+    public String getUserName() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String username;
-            
-            if (principal instanceof UserDetails) {
-                username = ((UserDetails) principal).getUsername();
-            } else {
-                username = principal.toString(); // Fallback if the principal is a raw string
-            }
-            return username;
+        String username;
+
+        if (principal instanceof UserDetails) {
+            username = ((UserDetails) principal).getUsername();
+        } else {
+            username = principal.toString(); // Fallback if the principal is a raw string
+        }
+        return username;
     }
 }

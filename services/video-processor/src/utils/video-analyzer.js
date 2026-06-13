@@ -1,4 +1,4 @@
-const ffmpeg = require('fluent-ffmpeg');
+import ffmpeg from 'fluent-ffmpeg'
 
 /**
  * Extracts metadata from the video file using ffprobe.
@@ -21,4 +21,4 @@ const analyzeVideo = (filePath) => {
   });
 };
 
-module.exports = { analyzeVideo };
+export { analyzeVideo };

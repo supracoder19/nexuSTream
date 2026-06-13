@@ -1,59 +1,81 @@
 package com.nexuSTream.core_service.Service;
 
-import com.nexuSTream.core_service.Repository.NotificationRepo;
-import com.nexuSTream.core_service.Repository.SubRepo;
-import com.nexuSTream.core_service.Repository.UserRepo;
-
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexuSTream.core_service.DTO.Event;
+import com.nexuSTream.core_service.DTO.QueueMessage;
 import com.nexuSTream.core_service.DTO.UnifiedNotificationEvent;
 import com.nexuSTream.core_service.Models.Notification;
 import com.nexuSTream.core_service.Models.User;
 import com.nexuSTream.core_service.Models.Video;
+import com.nexuSTream.core_service.Repository.NotificationRepo;
+import com.nexuSTream.core_service.Repository.SubRepo;
+import com.nexuSTream.core_service.Repository.UserRepo;
 import com.nexuSTream.core_service.Repository.VideoRepo;
 
-import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 
-@Slf4j
-@Service
-public class KafkaService {
-    // private final String topic = "videoUploaded";
-    private final String topicForProcessed = "videoProcessed";
-    private final String group = "kafka-tutorial-group";
+@Component
+@RequiredArgsConstructor
+public class QueueConsumer implements CommandLineRunner {
 
-    @Autowired
-    public KafkaTemplate<String, Object> kafkaTemplate;
+    @Resource(name = "queueRedisTemplate")
+    private StringRedisTemplate queue;
 
-    @Autowired
-    private VideoRepo vrepo;
-    @Autowired
-    private NotificationRepo nrepo;
-    @Autowired
-    private SubRepo srepo;
-     @Autowired
-    private UserRepo urepo;
+    private ObjectMapper mapper = new ObjectMapper();
 
-    public void publish(String topic, Event<?> event) {
-        kafkaTemplate.send(topic, event.getKey(), event.getValue());
-        log.info("Sent message: {}", event);
+    @Value("${topic.video.processed}")
+    private String videoProcessedTopic;
+    @Value("${topic.notification}")
+    private String notificationTopic;
+    
+    @Value("${S3_BASE_URL}")
+    private String BaseUrl;
+
+    private final VideoRepo vrepo;
+    private final NotificationRepo nrepo;
+    private final SubRepo srepo;
+    private final UserRepo urepo;
+
+    private final RedisService red;
+
+    @Override
+    public void run(String... args) {
+        new Thread(() -> {
+            while (true) {
+                // BRPOP waits for a message from the list. 
+                // '0' means wait indefinitely.
+                String result = queue.opsForList().rightPop("queue:"+videoProcessedTopic, Duration.ofSeconds(0));
+
+                if (result != null) {
+                    String jsonPayload = result;
+                    try {
+                        // Deserialize JSON back to your DTO
+                        QueueMessage<?> msg = mapper.readValue(jsonPayload, QueueMessage.class);
+                        processMessage(msg);
+                    } catch (Exception e) {
+                        System.err.println("Error processing task: " + e.getMessage());
+                    }
+                }
+            }
+        }).start();
     }
 
-    @Value("${S3_BASE_URL}")
-    private String BaseUrl = "http://localhost:9000/nexustream/";
-
-    @KafkaListener(topics = topicForProcessed, groupId = group)
-    public void listen(Event<?> event) {
-        log.info("Received event: {}", event);
-        try {
+    private void processMessage(QueueMessage<?> msg) {
+        if(msg.getTopic().equals(videoProcessedTopic))
+        {
+            try {
+            Event<?> event = msg.getEvent();
             String videoId = event.getKey();
             if (videoId != null) {
                 Video video = vrepo.findById(Long.valueOf(videoId)).orElse(null);
@@ -86,7 +108,9 @@ public class KafkaService {
                             owner.getUsername(), srepo.findByChannelCustom(video.getChannel()), mp);
                     Event<UnifiedNotificationEvent> event2 = new Event<>("processed Notification", value);
 
-                    publish("notification", event2);
+                    QueueMessage<UnifiedNotificationEvent> newMsg=new QueueMessage<>(notificationTopic,event2);
+                    red.pushTask(newMsg);
+
                 } else {
                     throw new Exception("no video found");
                 }
@@ -94,6 +118,7 @@ public class KafkaService {
                 throw new Exception("no videoId found");
         } catch (Exception e) {
             System.out.println(e.getMessage());
+        }
         }
     }
 }

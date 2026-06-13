@@ -40,8 +40,6 @@ const VPlayer = ({ setIsLoading }) => {
         setIsLoading(true);
         const data = await videoWatch(videoId);
         if (data) {
-          console.log(data);
-          
           setVideoSrc(data.videoUrl || "");
           setThumbnailSrc(data.thumbnailUrl || ""); 
           setComments(data.comments || []);

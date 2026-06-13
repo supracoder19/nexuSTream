@@ -5,11 +5,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.nexuSTream.core_service.DTO.ChannelDescriptionResponse;
 import com.nexuSTream.core_service.DTO.ChannelDetailsReq;
 import com.nexuSTream.core_service.DTO.ChannelProjection;
 import com.nexuSTream.core_service.DTO.Event;
+import com.nexuSTream.core_service.DTO.QueueMessage;
 import com.nexuSTream.core_service.DTO.ResponseObject;
 import com.nexuSTream.core_service.DTO.UnifiedNotificationEvent;
 import com.nexuSTream.core_service.DTO.VideoListProjection;
@@ -25,18 +27,22 @@ import com.nexuSTream.core_service.Repository.SubRepo;
 import com.nexuSTream.core_service.Repository.UserRepo;
 import com.nexuSTream.core_service.Repository.VideoRepo;
 
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class ChannelService {
-    private ChannelRepo cRepo;
-    private UserRepo urepo;
-    private NotificationRepo nrepo;
-    private SubRepo srepo;
-    private AuthService aserve;
-    private VideoRepo vrepo;
-    private KafkaService kaf;
+    private final ChannelRepo cRepo;
+    private final UserRepo urepo;
+    private final NotificationRepo nrepo;
+    private final SubRepo srepo;
+    private final AuthService aserve;
+    private final VideoRepo vrepo;
+    private final RedisService red;
+
+    @Value("${topic.notification}")
+    private String notificationTopic;
+
     public ResponseObject<?> searchChannels(String query)
     {
         ResponseObject<ChannelProjection> res=new ResponseObject<>();
@@ -99,7 +105,9 @@ public class ChannelService {
             Map<String,Object> mp = new HashMap<>();
             mp.put("ownerId",sub.getChannel().getOwner().getId());
             UnifiedNotificationEvent notice =  new UnifiedNotificationEvent("channel subscribed",u.getId(),u.getUsername(),null,mp);
-            kaf.publish("notification", new Event<>("channel subscribed",notice));
+            Event<UnifiedNotificationEvent> ev=new Event<>("channel subscribed",notice);
+            QueueMessage<UnifiedNotificationEvent> newMsg=new QueueMessage<>(notificationTopic,ev);
+            red.pushTask(newMsg);
         } catch (Exception e) {
             res.setSuccess(false);
             res.setMsg(e.getMessage());

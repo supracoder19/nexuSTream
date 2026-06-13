@@ -1,7 +1,6 @@
-const ffmpeg = require('fluent-ffmpeg');
-const path = require('path');
-const fs = require('fs');
-
+import ffmpeg from 'fluent-ffmpeg'
+import path from "path"
+import fs from "fs"
 /**
  * Transcodes an input video into 360p, 480p, and 720p HLS streams,
  * and generates a Master Playlist for Adaptive Bitrate Streaming.
@@ -89,4 +88,4 @@ const transcodeToHLS = (inputPath, outputDir) => {
   });
 };
 
-module.exports = { transcodeToHLS };
+export { transcodeToHLS };

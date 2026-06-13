@@ -13,7 +13,6 @@ import com.nexuSTream.core_service.Models.Video;
 
 @Repository
 public interface VideoRepo extends JpaRepository<Video, Long> {
-
     @Query("SELECT v.id AS id, " +
        "v.thumbnailUrl AS thumbnailUrl, " +
        "v.title AS title, " +

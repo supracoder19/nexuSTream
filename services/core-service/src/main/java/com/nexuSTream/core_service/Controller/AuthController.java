@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -15,23 +14,21 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.nexuSTream.core_service.DTO.Event;
 import com.nexuSTream.core_service.DTO.LoginObject;
 import com.nexuSTream.core_service.DTO.RegistrationObject;
 import com.nexuSTream.core_service.DTO.ResponseObject;
 import com.nexuSTream.core_service.Service.AuthService;
-import com.nexuSTream.core_service.Service.KafkaService;
+
+import lombok.AllArgsConstructor;
 
 
 
 
 @RestController
 @RequestMapping("/auth")
+@AllArgsConstructor
 public class AuthController {
-    @Autowired
     private AuthService auth;
-    @Autowired
-    private KafkaService kaf;
     @GetMapping("/viewCount")
     public String viewerCountIncrease() {
         return auth.viewerCountIncrease();
@@ -52,7 +49,7 @@ public class AuthController {
                 .sameSite("Lax")                   // Protects against CSRF attacks
                 .build();
 
-        ResponseCookie accCookie = ResponseCookie.from("Authorization","Bearer"+ob.getData().get(0).get("accessToken").trim())
+        ResponseCookie accCookie = ResponseCookie.from("accessToken",ob.getData().get(0).get("accessToken").trim())
                 .httpOnly(true)                    // Prevents JavaScript access (XSS protection)
                 // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
@@ -75,11 +72,11 @@ public class AuthController {
         return ResponseEntity.ok(ob);
     }
     @GetMapping("/refresh")
-    public ResponseEntity<ResponseObject<?>> refresh(@CookieValue(name ="refreshToken", required = false) String refreshToken) {
-        ResponseObject<HashMap<String,String>> res=auth.refreshService(refreshToken);
+    public ResponseEntity<ResponseObject<?>> refresh(@CookieValue(name ="refreshToken", required = false) String refreshToken,@CookieValue(name ="accessToken", required = false) String accessToken) {
+        ResponseObject<HashMap<String,String>> res=auth.refreshService(refreshToken,accessToken);
         if(res.getSuccess())
         {
-            ResponseCookie accCookie = ResponseCookie.from("Authorization","Bearer"+res.getData().get(0).get("accessToken"))
+            ResponseCookie accCookie = ResponseCookie.from("accessToken",res.getData().get(0).get("accessToken"))
                 .httpOnly(true)                    // Prevents JavaScript access (XSS protection)
                 // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
@@ -100,11 +97,6 @@ public class AuthController {
         // System.out.println(refreshToken);
         ResponseObject<String> res=auth.logoutService(refreshToken);
         return ResponseEntity.ok(res);
-    }
-    @PostMapping("/publish")
-    public String getMethodName(@RequestBody Map<String,String> req) {
-        kaf.publish("videoProcessed", new Event<Map<String,String>>("videoProcessed",req));
-        return new String("Message created");
     }
     @PostMapping("/updateUser")
     public ResponseEntity<?> updateUser(@RequestBody Map<String,String> req) {
