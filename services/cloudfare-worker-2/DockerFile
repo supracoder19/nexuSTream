@@ -1,0 +1,15 @@
+FROM node:22-slim
+
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# Force clean install inside the container environment
+RUN npm ci
+
+COPY . .
+
+EXPOSE 8788
+
+CMD ["npm", "run", "dev"]

@@ -9,19 +9,26 @@ import { pushTask } from "../services/RedisService.js"
 const topicForProcessed = process.env.TOPIC_VIDEO_PROCESSED
 
 const processVideoJob = async (videoData) => {
-  const videoKey = videoData.value
   const videoId = videoData.key
+  const videoKey = videoData.value.videoKey
+  const thumbnailKey = videoData.value.thumbnailKey
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const localInputPath = path.join(__dirname, `../../temp-storage/${videoId}_input.mp4`);
+  const localInputPath = path.join(__dirname, `../../temp-storage/${videoId}_input.${videoKey.split('.').pop()}`);
+  const localOutputPathThumbnail = path.join(__dirname, `../../temp-storage/${videoId}_output/thumbnail/${videoId}.${videoKey.split('.').pop()}`);
   const localOutputDir = path.join(__dirname, `../../temp-storage/${videoId}_output`);
 
   try {
     console.log(`========== Starting Processing Job: ${videoKey} ==========`);
 
+    //thumbnail processing
+    await downloadFromS3(thumbnailKey, localOutputPathThumbnail);
+
+
     // 1. Fetch raw asset from Cloud
-    console.log(`Downloading input file from S3: ${videoKey}...`);
+    console.log(`Downloading input video from S3: ${videoKey}...`);
     await downloadFromS3(videoKey, localInputPath);
+    await downloadFromS3(imageKey, localInputPath);
 
     // 2. Extract technical metrics
     const metadata = await analyzeVideo(localInputPath);
@@ -32,7 +39,7 @@ const processVideoJob = async (videoData) => {
     await transcodeToHLS(localInputPath, localOutputDir);
 
     // 4. Ship assets to Cloud bucket
-    const s3OutputPrefix = `${videoId}/processed`;
+    const s3OutputPrefix = `${videoId}_processed/`;
     console.log(`Uploading output manifest and segments to S3 prefix: ${s3OutputPrefix}...`);
     await uploadFolderToS3(localOutputDir, s3OutputPrefix);
 

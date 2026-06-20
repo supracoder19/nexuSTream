@@ -1,0 +1,16 @@
+{
+  "name": "cloudfare-worker-2",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler dev index.js --ip 0.0.0.0 --port 8788 --local"
+  },
+  "dependencies": {
+    "aws4fetch": "^1.0.20",
+    "wrangler": "^4.103.0"
+  }
+}

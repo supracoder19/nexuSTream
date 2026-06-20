@@ -38,6 +38,12 @@ public class JwtUtils {
         return createToken(claims, userDetails.getUsername(), System.currentTimeMillis() + 1000 * 60 * 15);
     }
 
+    public String generateAccessToken(UserDetails userDetails,long min) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", ((User) userDetails).getId());
+        return createToken(claims, userDetails.getUsername(), System.currentTimeMillis() + 1000 * 60 * min);
+    }
+
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         if (userDetails instanceof User) {

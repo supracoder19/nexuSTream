@@ -66,9 +66,9 @@ public class QueueConsumer implements CommandLineRunner {
                     } catch (Exception e) {
                         System.err.println("Error processing task: " + e.getMessage());
                     }
-                }
+                } 
             }
-        }).start();
+        }).start(); 
     }
 
     private void processMessage(QueueMessage<?> msg) {

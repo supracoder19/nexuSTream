@@ -13,28 +13,43 @@ const s3 = new S3Client({
   },
 });
 
+const s3Old = new S3Client({
+  region: process.env.AWS_REGION_old || 'us-east-1', // MinIO requires a placeholder region
+  endpoint: process.env.AWS_S3_ENDPOINT_old,          // e.g., http://localhost:9000 or http://minio:9000
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID_old,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_old,
+  },
+});
 /**
  * Downloads a file from S3 to local storage.
  */
 const downloadFromS3 = async (s3Key, localPath) => {
-  const command = new GetObjectCommand({
-    Bucket: process.env.AWS_S3_BUCKET,
-    Key: s3Key,
-  });
+  // Construct the full download URL from env and the key
+  // Ensures no double slashes if the base URL ends with one
+  const baseUrl = process.env.S3_Download_Bucket.replace(/\/$/, '/');
+  const downloadUrl = `${baseUrl}/${s3Key}?token=${process.env.SECRET_KEY}`;
 
-  const response = await s3.send(command);
+  const response = await fetch(downloadUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch asset from ${downloadUrl}: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error(`Response body from ${downloadUrl} is empty or not streamable`);
+  }
+
   return new Promise((resolve, reject) => {
-    if (response.Body instanceof Readable) {
-      const writeStream = fs.createWriteStream(localPath);
-      response.Body.pipe(writeStream)
-        .on('finish', resolve)
-        .on('error', reject);
-    } else {
-      reject(new Error('S3 response body is not a readable stream'));
-    }
+    const writeStream = fs.createWriteStream(localPath);
+    
+    // Node.js fetch returns a Web ReadableStream, so we consume it via Readable.fromWeb
+    Readable.fromWeb(response.body).pipe(writeStream)
+      .on('finish', resolve)
+      .on('error', reject);
   });
 };
-
 /**
  * Uploads an entire local folder to S3 (used for HLS output segments).
  */
@@ -104,21 +119,21 @@ const uploadFolderToS3 = async (localFolderPath, s3FolderPrefix) => {
   
   console.log('All transcode assets successfully synced to the cloud bucket.');
 };
-const deleteFromS3 = async (videoKey) => {
-  const bucketName = process.env.AWS_S3_BUCKET;
+const deleteFromS3 = async (videoId) => {
+  const bucketName = process.env.AWS_S3_BUCKET_old;
 
   try {
     
     const deleteCommand = new DeleteObjectCommand({
       Bucket: bucketName,
-      Key: videoKey
+      Key: videoId
   });
 
-    await s3.send(deleteCommand);
-    console.log(`Successfully deleted S3 folder structure: ${videoKey}`);
+    await s3Old.send(deleteCommand);
+    console.log(`Successfully deleted S3 folder structure: ${videoId}`);
 
   } catch (error) {
-    console.error(`Failed to delete folder ${videoKey} from S3:`, error);
+    console.error(`Failed to delete folder ${videoId} from S3:`, error);
     throw error;
   }
 };

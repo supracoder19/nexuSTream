@@ -4,7 +4,7 @@ const gateway_api = import.meta.env.VITE_GATEWAY_URL || "http://localhost:8081/a
 const core_api = import.meta.env.VITE_CORE_URL || "http://localhost:8081/apiV1/"
 const Upload = async (user, video, thumbnail, title, description, setActiveTab) => {
   let toastId
-  let videoKey, videoId
+  let videoKey, videoId, thumbnailKey
   try { 
     let v = ""
     let res = await axios.post(core_api + "video/upload", {
@@ -22,6 +22,7 @@ const Upload = async (user, video, thumbnail, title, description, setActiveTab) 
     if (res.data.success) {
       videoKey = res.data.data[0].videoKey
       videoId = res.data.data[0].videoId
+      thumbnailKey = res.data.data[0].thumbnailKey
       const videoUrl = res.data.data[0].videoUploadUrl
       const thumbanilUrl = res.data.data[0].thumbnailUploadUrl
       if (!videoUrl || !thumbanilUrl) throw new Error("No upload url found")
@@ -78,7 +79,8 @@ const Upload = async (user, video, thumbnail, title, description, setActiveTab) 
       console.log("Video Uploaded Succesfully")
       res = await axios.post(core_api + "video/uploaded", {
         videoId,
-        videoKey
+        videoKey,
+        thumbnailKey,
       },
         {
           withCredentials: true
@@ -109,10 +111,12 @@ const videoWatch = async (videoId) => {
     const res = await axios.get(`${core_api}video/watch/${videoId}`, {
       withCredentials: true // Included to match your upload configuration for session/auth
     });
+console.log(res);
 
     if (res.data.success) {
       // Assuming the backend returns the video details or a playback URL
       return res.data.data[0];
+      
     } else {
       throw new Error(res.data.msg || "Failed to fetch video data");
     }
@@ -120,6 +124,7 @@ const videoWatch = async (videoId) => {
     console.error("Error fetching video:", e);
   }
 };
+
 const videoLike = async (videoId, setLiked) => {
   try {
     const res = await axios.get(`${core_api}video/like/${videoId}`, {

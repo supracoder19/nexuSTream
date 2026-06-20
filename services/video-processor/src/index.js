@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 
 // Express Health Check Route
-app.get('/health', (req, res) => {
+app.get('/health-check', (req, res) => {
   res.status(200).json({ status: 'UP', service: 'video-processor' });
 });
 
@@ -17,4 +17,4 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Express status server bound to port ${PORT}`);
   startConsumer().catch(err => console.error('Fatal initialization error in Kafka consumer:', err));
-});
+}); 

@@ -34,6 +34,7 @@ import com.nexuSTream.core_service.Repository.SubRepo;
 import com.nexuSTream.core_service.Repository.UserRepo;
 import com.nexuSTream.core_service.Repository.VideoLikeRepo;
 import com.nexuSTream.core_service.Repository.VideoRepo;
+import com.nexuSTream.core_service.utils.JwtUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,6 +50,8 @@ public class VideoService {
     private final SubRepo subRepo;
     private final AuthService aserve;
     private final VideoLikeRepo likeRepo;
+    private final JwtUtils jwt;
+
     @Value("${S3_BASE_URL}")
     private String BaseUrl ;
 
@@ -72,7 +75,7 @@ public class VideoService {
             video.setDescription(req.getDescription());
             video.setPrivate(false);
             vRepo.save(video);
-            String thumbnailString = BaseUrl + video.getId() + "/thumbnail/" + video.getId() + "."
+            String thumbnailString = BaseUrl + video.getId() + "_processed/thumbnail/" + video.getId() + "."
                     + req.getThumbnailType();
             video.setThumbnailUrl(thumbnailString);
             vRepo.save(video);
@@ -85,6 +88,7 @@ public class VideoService {
             data.put("videoUploadUrl", getVideoUrl);
             data.put("thumbnailUploadUrl", getThumbnailUrl);
             data.put("videoKey", videoPath);
+            data.put("thumbnailKey", thumbnailPath);
             data.put("videoId", String.valueOf(video.getId()));
             res.setData(List.of(data));
             return res;
@@ -100,11 +104,13 @@ public class VideoService {
         ResponseObject<String> res = new ResponseObject<>();
         try {
             String key = req.get("videoId");
-            String value = req.get("videoKey");
+            Map<String,String> value = new HashMap<>();
+            value.put("videoKey",req.get("videoKey"));
+            value.put("thumbnailKey",req.get("thumbnailKey"));
             Video video = vRepo.findById(Long.valueOf(key)).orElse(null);
             if (video != null && !video.isProcessed()) {
-                Event<String> event = new Event<>(key, value);
-                QueueMessage<String> newMsg=new QueueMessage<>(videoUploadedTopic,event);
+                Event<Map<?,?>> event = new Event<>(key, value);
+                QueueMessage<Map<?,?>> newMsg=new QueueMessage<>(videoUploadedTopic,event);
                 red.pushTask(newMsg);
                 res.setMsg("video processing started");
             } else {
@@ -126,7 +132,8 @@ public class VideoService {
             User u = uRepo.findByUsername(aserve.getUserName()).orElseThrow(() -> new Exception("user not found"));
             boolean isLiked = likeRepo.existsById(new CustomUniqueId(u.getId(), video.getId()));
             boolean isSubscribed = subRepo.customExistsBy(video.getChannel(),u);
-            VideoWatchResponse vres = new VideoWatchResponse(video.getVideoUrl(), video.getTitle(),
+            String videoPath = video.getVideoUrl()+"?token="+jwt.generateAccessToken(u, 15);
+            VideoWatchResponse vres = new VideoWatchResponse(videoPath, video.getTitle(),
                     video.getThumbnailUrl(), isLiked, isSubscribed, video.getChannel().getId(), video.getId(),
                     comments,video.getChannel().getChannelName());
             res.setMsg("Enjoy streaming");

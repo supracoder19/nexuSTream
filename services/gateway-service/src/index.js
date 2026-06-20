@@ -36,8 +36,6 @@ startConsumer(io).catch(error=>{
 })
 // 2. Now ${PORT} will safely resolve here
 app.get('/', (req, res) => {
-    console.log("working");
-    
     res.send(`Gateway running on port ${PORT}`);
 });
 
