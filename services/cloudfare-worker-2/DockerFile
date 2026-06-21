@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Force clean install inside the container environment
-RUN npm ci
+RUN npm i
 
 COPY . .
 

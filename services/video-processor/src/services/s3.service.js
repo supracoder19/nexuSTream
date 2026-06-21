@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand,DeleteObjectCommand }  from '@aws-sdk/client-s3'
+import { ListObjectsV2Command,S3Client, GetObjectCommand, PutObjectCommand,DeleteObjectsCommand }  from '@aws-sdk/client-s3'
 import path from "path"
 import fs from "fs"
 import { Readable } from 'stream'
@@ -26,25 +26,30 @@ const s3Old = new S3Client({
  * Downloads a file from S3 to local storage.
  */
 const downloadFromS3 = async (s3Key, localPath) => {
-  // Construct the full download URL from env and the key
-  // Ensures no double slashes if the base URL ends with one
   const baseUrl = process.env.S3_Download_Bucket.replace(/\/$/, '/');
   const downloadUrl = `${baseUrl}/${s3Key}?token=${process.env.SECRET_KEY}`;
-
+  console.log("downloading from", downloadUrl);
+  
   const response = await fetch(downloadUrl);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch asset from ${downloadUrl}: ${response.statusText}`);
-  }
+  } 
 
   if (!response.body) {
     throw new Error(`Response body from ${downloadUrl} is empty or not streamable`);
   }
 
+  // 1. Get the directory path (e.g., /app/temp-storage/24_output/thumbnail)
+  const dir = path.dirname(localPath);
+  
+  // 2. Create the missing nested folders recursively (like mkdir -p)
+  await fs.promises.mkdir(dir, { recursive: true });
+
+  // 3. Stream the file directly into the newly created folder
   return new Promise((resolve, reject) => {
     const writeStream = fs.createWriteStream(localPath);
     
-    // Node.js fetch returns a Web ReadableStream, so we consume it via Readable.fromWeb
     Readable.fromWeb(response.body).pipe(writeStream)
       .on('finish', resolve)
       .on('error', reject);
@@ -121,16 +126,37 @@ const uploadFolderToS3 = async (localFolderPath, s3FolderPrefix) => {
 };
 const deleteFromS3 = async (videoId) => {
   const bucketName = process.env.AWS_S3_BUCKET_old;
+  // Ensure the folder prefix ends with a slash so you don't accidentally 
+  // delete "26_processed_backup" when trying to delete "26_processed"
+  const folderPrefix = videoId.endsWith('/') ? videoId : `${videoId}/`;
 
   try {
-    
-    const deleteCommand = new DeleteObjectCommand({
+    // 1. List all objects inside the "folder"
+    const listCommand = new ListObjectsV2Command({
       Bucket: bucketName,
-      Key: videoId
-  });
+      Prefix: folderPrefix,
+    });
 
-    await s3Old.send(deleteCommand);
-    console.log(`Successfully deleted S3 folder structure: ${videoId}`);
+    const listedObjects = await s3Old.send(listCommand);
+
+    // If the folder is already empty, we're done
+    if (!listedObjects.Contents || listedObjects.Contents.length === 0) {
+      console.log(`Folder ${folderPrefix} is already empty or doesn't exist.`);
+      return;
+    }
+
+    // 2. Prepare the batch of objects to delete
+    const deleteParams = {
+      Bucket: bucketName,
+      Delete: {
+        Objects: listedObjects.Contents.map(({ Key }) => ({ Key }))
+      }
+    };
+
+    // 3. Execute the batch delete command
+    await s3Old.send(new DeleteObjectsCommand(deleteParams));
+    
+    console.log(`Successfully deleted virtual folder structure: ${folderPrefix}`);
 
   } catch (error) {
     console.error(`Failed to delete folder ${videoId} from S3:`, error);

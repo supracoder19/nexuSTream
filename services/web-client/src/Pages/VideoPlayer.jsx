@@ -1,14 +1,12 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Added useRef
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 
-// Import Vidstack components + Gesture engine
-import { MediaPlayer, MediaProvider, Poster, Gesture } from '@vidstack/react';
+// Import Vidstack components + Gesture engine + Type definitions if needed
+import { MediaPlayer, MediaProvider, Poster, Gesture, isHLSProvider } from '@vidstack/react';
 import { DefaultVideoLayout, defaultLayoutIcons } from '@vidstack/react/player/layouts/default';
 
-// Core package styles direct routing (Verified from your file directory tree)
-// import 'vidstack/bundle';
+// Core package styles
 import '@vidstack/react/player/styles/base.css';
 import '@vidstack/react/player/styles/default/theme.css';
 import '@vidstack/react/player/styles/default/layouts/video.css';
@@ -19,14 +17,15 @@ import { subscribeChannel, unsubscribeChannel } from '../Services/ChannelService
 
 const VPlayer = ({ setIsLoading }) => {
   const { videoId } = useParams();
-  
+  const playerRef = useRef(null); // Reference to intercept the underlying HLS instance
+
   const [liked, setLiked] = useState(false);
   const [subbed, setSubbed] = useState(false);
   const [channelId, setChannelId] = useState("");
   const [channelNAme, setChannelNAme] = useState("");
   const user = useSelector(state => state.user);
   const navigate = useNavigate();
-  
+
   const [videoSrc, setVideoSrc] = useState("");
   const [thumbnailSrc, setThumbnailSrc] = useState("");
   const [comments, setComments] = useState([]);
@@ -41,7 +40,7 @@ const VPlayer = ({ setIsLoading }) => {
         const data = await videoWatch(videoId);
         if (data) {
           setVideoSrc(data.videoUrl || "");
-          setThumbnailSrc(data.thumbnailUrl || ""); 
+          setThumbnailSrc(data.thumbnailUrl || "");
           setComments(data.comments || []);
           setLiked(data.liked);
           setSubbed(data.subscribed);
@@ -54,7 +53,57 @@ const VPlayer = ({ setIsLoading }) => {
     })();
   }, [videoId, setIsLoading]);
 
-  // 2. Add New Comment Action
+  function handleProviderChange(provider) {
+  if (!isHLSProvider(provider)) return;
+
+  provider.config = {
+    ...provider.config,
+
+    xhrSetup: (xhr, url) => {
+      let finalUrl = url;
+
+      try {
+        if (videoSrc) {
+          const token = new URL(videoSrc, window.location.origin).search;
+
+          if (
+            token &&
+            !url.includes("X-Amz-Signature")
+          ) {
+            finalUrl =
+              url +
+              (url.includes("?") ? "&" : "?") +
+              token.substring(1);
+          }
+        }
+      } catch (err) {
+        console.error("Token append error:", err);
+      }
+
+      const originalOpen = xhr.open;
+
+      xhr.open = function(method, requestUrl, ...args) {
+        return originalOpen.call(
+          this,
+          method,
+          finalUrl,
+          ...args
+        );
+      };
+
+      // If using cookies:
+      xhr.withCredentials = true;
+
+      // If using JWT instead of cookies:
+      // const token = localStorage.getItem("token");
+      // if (token) {
+      //   xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      // }
+    }
+  };
+}
+
+  // 3. Add New Comment Action
   const handleAddComment = (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
@@ -74,61 +123,36 @@ const VPlayer = ({ setIsLoading }) => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 max-w-[1600px] mx-auto text-zinc-900 dark:text-zinc-100">
-      
+
       {/* COLUMN 1 & 2: Video Workspace */}
       <div className="lg:col-span-2 flex flex-col">
-        
+
         <div className="w-full bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl relative select-none">
           {videoSrc ? (
             <MediaPlayer 
-              title={title} 
-              src={videoSrc}
-              aspectRatio="16/9"
-              playsInline
-              // fullscreenOrientation="none" /* Silences console error on desktop windows */
-              className="w-full h-full object-contain relative"
-            >
+      title={title} 
+      src={videoSrc}
+      aspectRatio="16/9"
+      playsInline
+      onProviderChange={handleProviderChange} // Binds directly to the provider instance hook
+      className="w-full h-full object-contain relative"
+    >
               {/* --- GESTURE HIT DETECTION LAYER --- */}
-              {/* Single tap: toggles playback across desktop mouse and mobile screens */}
-              <Gesture 
-                action="toggle:paused" 
-                event="pointerup" 
-                className="absolute inset-0 z-10 block cursor-pointer" 
-              />
-              
-              {/* Overrides pause capture on double clicks so skips process instantly */}
-              <Gesture 
-                action="toggle:paused" 
-                event="dblpointerup" 
-                className="absolute inset-0 z-0 hidden" 
-              />
+              <Gesture action="toggle:paused" event="pointerup" className="absolute inset-0 z-10 block cursor-pointer" />
+              <Gesture action="toggle:paused" event="dblpointerup" className="absolute inset-0 z-0 hidden" />
+              <Gesture action="seek:-10" event="dblpointerup" className="absolute top-0 left-0 w-1/3 h-full z-20 block touch-none" />
+              <Gesture action="seek:10" event="dblpointerup" className="absolute top-0 right-0 w-1/3 h-full z-20 block touch-none" />
 
-              {/* Double tap left: seek backwards 10s */}
-              <Gesture 
-                action="seek:-10" 
-                event="dblpointerup" 
-                className="absolute top-0 left-0 w-1/3 h-full z-20 block touch-none" 
-              />
-              
-              {/* Double tap right: seek forwards 10s */}
-              <Gesture 
-                action="seek:10" 
-                event="dblpointerup" 
-                className="absolute top-0 right-0 w-1/3 h-full z-20 block touch-none" 
-              />
-
-              {/* Media pipeline layout content provider */}
               <MediaProvider>
                 {thumbnailSrc && (
-                  <Poster 
+                  <Poster
                     className="vds-poster object-contain"
-                    src={thumbnailSrc} 
-                    alt={title} 
+                    src={thumbnailSrc}
+                    alt={title}
                   />
                 )}
               </MediaProvider>
-              
-              {/* Renders native control bars, settings cogwheel, and tracking overlay */}
+
               <DefaultVideoLayout icons={defaultLayoutIcons} />
             </MediaPlayer>
           ) : (
@@ -145,27 +169,25 @@ const VPlayer = ({ setIsLoading }) => {
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full" />
               <span className='font-bold text-lg cursor-pointer' onClick={() => { navigate("/channel/" + channelId) }}>{channelNAme}</span>
-              <button 
+              <button
                 onClick={async () => {
                   let d = subbed ? (await unsubscribeChannel(channelId)) : (await subscribeChannel(channelId));
                   setSubbed(d);
                 }}
-                className={`px-6 py-2 rounded-full font-bold cursor-pointer transition-all ${
-                  subbed ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400' : 'bg-zinc-900 text-white dark:bg-white dark:text-black'
-                }`}
+                className={`px-6 py-2 rounded-full font-bold cursor-pointer transition-all ${subbed ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400' : 'bg-zinc-900 text-white dark:bg-white dark:text-black'
+                  }`}
               >
                 {subbed ? 'Subscribed' : 'Subscribe'}
               </button>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 if (liked) videoDislike(videoId, setLiked);
                 else videoLike(videoId, setLiked);
               }}
-              className={`flex items-center cursor-pointer gap-2 px-6 py-2 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition ${
-                liked ? 'text-blue-500 ring-1 ring-blue-500 bg-blue-50 dark:bg-blue-950/30' : ''
-              }`}
+              className={`flex items-center cursor-pointer gap-2 px-6 py-2 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition ${liked ? 'text-blue-500 ring-1 ring-blue-500 bg-blue-50 dark:bg-blue-950/30' : ''
+                }`}
             >
               👍 {liked ? 'Liked' : 'Like'}
             </button>
@@ -181,8 +203,8 @@ const VPlayer = ({ setIsLoading }) => {
             {user.userName?.charAt(0).toUpperCase() || "U"}
           </div>
           <div className="flex-1 flex flex-col gap-2">
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Add a public comment..."
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}

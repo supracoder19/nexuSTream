@@ -51,6 +51,7 @@ services:
       - "8787:8787"
     volumes:
       - ./services/cloudfare-worker:/app
+      - /app/node_modules
     networks:
       - nexus-network
   cloudfare-worker-2:
@@ -61,6 +62,7 @@ services:
       - "8788:8788"
     volumes:
       - ./services/cloudfare-worker-2:/app
+      - /app/node_modules
     networks:
       - nexus-network
   web-client:
@@ -132,7 +134,6 @@ services:
       - "4781:4781"
     volumes:
       - ./services/video-processor/:/app/video-processor/
-      - ./services/video-processor-service/temp-storage:/app/video-processor/temp-storage
       - /app/video-processor/node_modules
     env_file:
       - ./services/video-processor/.env.dummy
@@ -159,28 +160,52 @@ services:
       - nexus-network
 
   db-service:
-    image: mariadb:11.8.8-noble
+    image: postgres:14-alpine3.24
+    container_name: db-service
     ports:
-      - "10023:3306"
+      - "10024:5432"
     environment:
-      - MARIADB_ROOT_PASSWORD=root
-      - MARIADB_DATABASE=supradb
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=supradb 
     volumes:
-      - mariadb_data:/var/lib/mysql
-    networks:
-      - nexus-network
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
+      # pg_isready is the built-in postgres tool to check if the DB is accepting connections
+      test: ["CMD-SHELL", "pg_isready -U postgres -d supradb"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    networks:
+      - nexus-network
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-service
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: 1234
+    ports:
+      - "10025:80"
+    networks:
+      - nexus-network
+    depends_on:
+      db-service:
+        # Ensures pgAdmin won't start until Postgres passes its healthcheck
+        condition: service_healthy
+    healthcheck:
+      # Pings the built-in pgAdmin health endpoint. Fails (exit 1) if it doesn't get a 200 OK.
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/misc/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 networks:
   nexus-network:
     driver: bridge
 
 volumes:
-  mariadb_data:
+  postgres_data:
   redis_data:
   minio_data:
   kafka_data:

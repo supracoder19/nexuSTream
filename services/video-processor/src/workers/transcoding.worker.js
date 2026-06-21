@@ -15,7 +15,7 @@ const processVideoJob = async (videoData) => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const localInputPath = path.join(__dirname, `../../temp-storage/${videoId}_input.${videoKey.split('.').pop()}`);
-  const localOutputPathThumbnail = path.join(__dirname, `../../temp-storage/${videoId}_output/thumbnail/${videoId}.${videoKey.split('.').pop()}`);
+  const localOutputPathThumbnail = path.join(__dirname, `../../temp-storage/${videoId}_output/thumbnail/${videoId}.${thumbnailKey.split('.').pop()}`);
   const localOutputDir = path.join(__dirname, `../../temp-storage/${videoId}_output`);
 
   try {
@@ -28,7 +28,7 @@ const processVideoJob = async (videoData) => {
     // 1. Fetch raw asset from Cloud
     console.log(`Downloading input video from S3: ${videoKey}...`);
     await downloadFromS3(videoKey, localInputPath);
-    await downloadFromS3(imageKey, localInputPath);
+    await downloadFromS3(thumbnailKey,localOutputPathThumbnail);
 
     // 2. Extract technical metrics
     const metadata = await analyzeVideo(localInputPath);
@@ -39,12 +39,12 @@ const processVideoJob = async (videoData) => {
     await transcodeToHLS(localInputPath, localOutputDir);
 
     // 4. Ship assets to Cloud bucket
-    const s3OutputPrefix = `${videoId}_processed/`;
+    const s3OutputPrefix = `${videoId}_processed`;
     console.log(`Uploading output manifest and segments to S3 prefix: ${s3OutputPrefix}...`);
     await uploadFolderToS3(localOutputDir, s3OutputPrefix);
 
-    console.log(`Deleting from S3: ${videoKey}...`);
-    await deleteFromS3(videoKey)
+    console.log(`Deleting from S3: ${videoId}...`);
+    await deleteFromS3(videoId)
     const msg =
     {
       "topic": topicForProcessed,

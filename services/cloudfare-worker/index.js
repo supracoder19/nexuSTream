@@ -92,7 +92,8 @@ export default {
     }
 
     const url = new URL(request.url);
-    const queryToken = url.searchParams.get("token");
+    if(url.toString().endsWith(".m3u8"))
+    {const queryToken = url.searchParams.get("token");
     const cookieToken = getCookie(request, "accessToken");
     
     const queryPayload = await verifyAndGetPayload(queryToken, env.JWT_SECRET);
@@ -107,7 +108,7 @@ export default {
 
     if (!queryUser || !cookieUser || queryUser !== cookieUser) {
       return new Response("Forbidden: Token identity mismatch", { status: 403 });
-    }
+    }}
 
     // Prepare clean URL params and forward proxy properties
     url.searchParams.delete("token");

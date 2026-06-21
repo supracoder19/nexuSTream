@@ -132,7 +132,7 @@ public class VideoService {
             User u = uRepo.findByUsername(aserve.getUserName()).orElseThrow(() -> new Exception("user not found"));
             boolean isLiked = likeRepo.existsById(new CustomUniqueId(u.getId(), video.getId()));
             boolean isSubscribed = subRepo.customExistsBy(video.getChannel(),u);
-            String videoPath = video.getVideoUrl()+"?token="+jwt.generateAccessToken(u, 15);
+            String videoPath =BaseUrl+video.getId()+"_processed/master.m3u8?token="+jwt.generateAccessToken(u, 15);
             VideoWatchResponse vres = new VideoWatchResponse(videoPath, video.getTitle(),
                     video.getThumbnailUrl(), isLiked, isSubscribed, video.getChannel().getId(), video.getId(),
                     comments,video.getChannel().getChannelName());
