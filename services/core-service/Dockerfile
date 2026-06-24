@@ -21,7 +21,7 @@ CMD ["mvn", "spring-boot:run"]
 # ==========================================
 # Stage 2: Production Run Tier (Named: production)
 # ==========================================
-FROM openjdk:17-jdk-slim AS production
+FROM eclipse-temurin:17-jre-jammy AS production
 WORKDIR /app
 
 # Compile the final jar inside the builder stage environment
