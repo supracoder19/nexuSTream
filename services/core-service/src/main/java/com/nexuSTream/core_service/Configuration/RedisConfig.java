@@ -17,16 +17,22 @@ public class RedisConfig {
     @Value("${SPRING_ENV:production}")
     private String springEnv;
 
-    // Helper method configuration logic
-    private LettuceClientConfiguration getClientConfig() {
-        LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder();
+    /**
+     * Builds a clean client configuration instance for each factory.
+     * Replaced Duration.ZERO with a 5-second production safety timeout.
+     */
+    private LettuceClientConfiguration createLettuceClientConfig() {
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder()
+                .commandTimeout(Duration.ofSeconds(5)); // Prevents infinite thread blocking on Render
+
         if (!"development".equalsIgnoreCase(springEnv)) {
-            builder.useSsl();
+            builder.useSsl(); // Properly triggers rediss:// for Upstash
         }
-        return builder.commandTimeout(Duration.ZERO).build();
+        
+        return builder.build();
     }
 
-    // 1. Define and Initialize Auth Factory Bean
+    // 1. Define Auth Factory Bean
     @Bean(name = "authConnectionFactory")
     public LettuceConnectionFactory authConnectionFactory(RedisAuthProps redAuth) {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(
@@ -35,13 +41,11 @@ public class RedisConfig {
         );
         config.setPassword(redAuth.password());
         
-        LettuceConnectionFactory factory = new LettuceConnectionFactory(config, getClientConfig());
-        // CRITICAL: Force initialization since we are configuring manually
-        factory.afterPropertiesSet(); 
-        return factory;
+        // Spring lifecycle automatically handles afterPropertiesSet() natively
+        return new LettuceConnectionFactory(config, createLettuceClientConfig());
     }
 
-    // 2. Define and Initialize Queue Factory Bean
+    // 2. Define Queue Factory Bean
     @Primary
     @Bean(name = "queueConnectionFactory")
     public LettuceConnectionFactory queueConnectionFactory(RedisQueueProps redQueue) {
@@ -51,13 +55,10 @@ public class RedisConfig {
         );
         config.setPassword(redQueue.password());
         
-        LettuceConnectionFactory factory = new LettuceConnectionFactory(config, getClientConfig());
-        // CRITICAL: Force initialization since we are configuring manually
-        factory.afterPropertiesSet(); 
-        return factory;
+        return new LettuceConnectionFactory(config, createLettuceClientConfig());
     }
 
-    // 3. Inject explicitly into your distinct templates
+    // 3. Explicitly injected templates
     @Bean(name = "authRedisTemplate")
     public StringRedisTemplate authRedisTemplate(@Qualifier("authConnectionFactory") LettuceConnectionFactory authConnectionFactory) {
         return new StringRedisTemplate(authConnectionFactory);
