@@ -54,54 +54,42 @@ const VPlayer = ({ setIsLoading }) => {
   }, [videoId, setIsLoading]);
 
   function handleProviderChange(provider) {
-  if (!isHLSProvider(provider)) return;
+    if (!isHLSProvider(provider)) return;
 
-  provider.config = {
-    ...provider.config,
+    provider.config = {
+      ...provider.config,
 
-    xhrSetup: (xhr, url) => {
-      let finalUrl = url;
+      xhrSetup: (xhr, url) => {
+        let finalUrl = url
 
-      try {
-        if (videoSrc) {
-          const token = new URL(videoSrc, window.location.origin).search;
-
-          if (
-            token &&
-            !url.includes("X-Amz-Signature")
-          ) {
-            finalUrl =
-              url +
-              (url.includes("?") ? "&" : "?") +
-              token.substring(1);
+        try {
+          // 1. Force the absolute backend worker paths to route through your proxy gateway endpoint instead
+          if (finalUrl.includes( import.meta.env.VITE_REPLACE)) {
+            finalUrl = finalUrl.replaceAll(import.meta.env.VITE_REPLACE, import.meta.env.VITE_REPLACE_WITH);
           }
+
+          // 2. Propagate your authentication access tokens down to all sub-manifests and video chunks
+          if (videoSrc) {
+            const token = videoSrc.split("?")[1]
+
+            // Make sure token exists and isn't already appended to avoid breaking signed AWS parameters
+            if (token) {
+              const separator = finalUrl.includes("?") ? "&" : "?";
+              finalUrl = `${finalUrl}${separator}${token}`;
+            }
+          }
+        } catch (err) {
+          console.error("Token append or URL rewrite error:", err);
         }
-      } catch (err) {
-        console.error("Token append error:", err);
+
+        // 3. Open the actual request using the properly restructured endpoint
+        xhr.open("GET", finalUrl, true);
+
+        // Required to let cookies pass through via cross-origin requests
+        xhr.withCredentials = true;
       }
-
-      const originalOpen = xhr.open;
-
-      xhr.open = function(method, requestUrl, ...args) {
-        return originalOpen.call(
-          this,
-          method,
-          finalUrl,
-          ...args
-        );
-      };
-
-      // If using cookies:
-      xhr.withCredentials = true;
-
-      // If using JWT instead of cookies:
-      // const token = localStorage.getItem("token");
-      // if (token) {
-      //   xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-      // }
-    }
-  };
-}
+    };
+  }
 
   // 3. Add New Comment Action
   const handleAddComment = (e) => {
@@ -129,14 +117,14 @@ const VPlayer = ({ setIsLoading }) => {
 
         <div className="w-full bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl relative select-none">
           {videoSrc ? (
-            <MediaPlayer 
-      title={title} 
-      src={videoSrc}
-      aspectRatio="16/9"
-      playsInline
-      onProviderChange={handleProviderChange} // Binds directly to the provider instance hook
-      className="w-full h-full object-contain relative"
-    >
+            <MediaPlayer
+              title={title}
+              src={videoSrc}
+              aspectRatio="16/9"
+              playsInline
+              onProviderChange={handleProviderChange} // Binds directly to the provider instance hook
+              className="w-full h-full object-contain relative"
+            >
               {/* --- GESTURE HIT DETECTION LAYER --- */}
               <Gesture action="toggle:paused" event="pointerup" className="absolute inset-0 z-10 block cursor-pointer" />
               <Gesture action="toggle:paused" event="dblpointerup" className="absolute inset-0 z-0 hidden" />
@@ -149,6 +137,7 @@ const VPlayer = ({ setIsLoading }) => {
                     className="vds-poster object-contain"
                     src={thumbnailSrc}
                     alt={title}
+                    crossOrigin="use-credentials"
                   />
                 )}
               </MediaProvider>

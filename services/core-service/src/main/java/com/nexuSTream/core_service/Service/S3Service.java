@@ -4,11 +4,12 @@ import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.nexuSTream.core_service.Configuration.S3propsFromProperties;
 
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
@@ -22,12 +23,13 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class S3Service {
 
-        private S3Presigner presigner;
-        private S3propsFromProperties props;
-        private S3Client s3;
+        private final S3Presigner presigner;
+        private final S3propsFromProperties props;
+        @Value("${SPRING_ENV}")
+        private String springEnv;
 
         public String generateUploadUrl(String key, String Size) {
                 PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -37,7 +39,7 @@ public class S3Service {
                                 .build();
 
                 PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                                .signatureDuration(Duration.ofMinutes(20))
+                                .signatureDuration(Duration.ofMinutes(60))
                                 .putObjectRequest(putObjectRequest)
                                 .build();
 
@@ -48,12 +50,15 @@ public class S3Service {
                 // Inject "/minio/" right after the port/host definition
                 // Turns: http://10.154.162.64:8081/nexustream/...
                 // Into: http://10.154.162.64:8081/minio/nexustream/...
-                String proxyCompatibleUrl = originalUrl.replace(":8081/", ":8081/minio/");
-
-                return proxyCompatibleUrl;
+                if ("development".equals(springEnv)) {
+                        String proxyCompatibleUrl = originalUrl.replace(":8081/", ":8081/minio/");
+                        return proxyCompatibleUrl;
+                } 
+                else
+                        return originalUrl;
         }
 
-        public void deleteKey(String key) {
+        public void deleteKey(String key, S3Client s3) {
                 try {
                         if (key == null || key.isBlank()) {
                                 System.out.println("S3 delete aborted: Key is null or empty string.");
@@ -76,7 +81,8 @@ public class S3Service {
 
         }
 
-        public void deleteKeyWithException(String folderKey) throws Exception {
+        public void deleteKeyWithException(String folderKey, S3Client s3){
+                
                 if (folderKey == null || folderKey.isBlank()) {
                         System.out.println("S3 folder delete aborted: Key is null or empty string.");
                         return;

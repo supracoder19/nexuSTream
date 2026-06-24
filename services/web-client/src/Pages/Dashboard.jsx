@@ -244,6 +244,7 @@ const Dashboard = ({setIsLoading}) => {
         )}
 
         {/* Tab 3: Manage Content Tables */}
+{/* Tab 3: Manage Content Tables */}
 {activeTab === 'manage' && (
   <div className="space-y-6">
     <div>
@@ -287,11 +288,13 @@ const Dashboard = ({setIsLoading}) => {
                   </span>
 
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold ${
-                    item.processed 
+                    item.processed === "TRUE"
                       ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' 
+                      : item.processed === "FAILED"
+                      ? 'bg-red-500/10 text-red-500 border border-red-500/20'
                       : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
                   }`}>
-                    {item.processed ? 'Processed' : 'Processing'}
+                    {item.processed === "TRUE" ? 'Processed' : item.processed === "FAILED" ? 'Failed' : 'Processing'}
                   </span>
                 </div>
                 
@@ -313,20 +316,38 @@ const Dashboard = ({setIsLoading}) => {
                 {/* Actions */}
                 <div className="col-span-2 text-right">
                   <div className="flex items-center justify-end gap-3 text-center">
-                    <button 
-                      onClick={async () => { 
-                        const d = item.private ? await makePublic(item.id) : await makePrivate(item.id);
-                        if(d) {
-                          setVideos(state => state.map((thisItem) => 
-                            thisItem.id === item.id ? { ...thisItem, private: !thisItem.private } : thisItem
-                          ));
-                        }
-                      }}
-                      className="text-zinc-400 hover:text-zinc-200 font-medium text-xs transition-colors cursor-pointer whitespace-nowrap"
-                    >
-                      {item.private ? 'Make Public' : 'Make Private'}
-                    </button>
-                    {item.processed && (
+                    {item.processed === "FAILED" ? (
+                      <button 
+                        onClick={async () => {
+                          setIsLoading(true);
+                          // Replace with your actual retry service method
+                          // await retryVideoProcessing(item.id); 
+                          // Optionally re-fetch owner videos to refresh status
+                          await seeOwnerVideos(setVideos);
+                          setIsLoading(false);
+                        }}
+                        className="text-blue-500 hover:text-blue-400 font-bold text-xs transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        🔄 Retry
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={async () => { 
+                          const d = item.private ? await makePublic(item.id) : await makePrivate(item.id);
+                          if(d) {
+                            setVideos(state => state.map((thisItem) => 
+                              thisItem.id === item.id ? { ...thisItem, private: !thisItem.private } : thisItem
+                            ));
+                          }
+                        }}
+                        className="text-zinc-400 hover:text-zinc-200 font-medium text-xs transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        {item.private ? 'Make Public' : 'Make Private'}
+                      </button>
+                    )}
+                    
+                    {/* Allow deleting both processed and failed videos */}
+                    {(item.processed === "TRUE" || item.processed === "FAILED") && (
                       <>
                         <div className="h-3 w-[1px] bg-zinc-700 shrink-0" />
                         <button 
@@ -366,11 +387,13 @@ const Dashboard = ({setIsLoading}) => {
                       {item.private ? 'Private' : 'Public'}
                     </span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                      item.processed 
+                      item.processed === "TRUE" 
                         ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' 
+                        : item.processed === "FAILED"
+                        ? 'bg-red-500/10 text-red-500 border border-red-500/20'
                         : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
                     }`}>
-                      {item.processed ? 'Processed' : 'Processing'}
+                      {item.processed === "TRUE" ? 'Processed' : item.processed === "FAILED" ? 'Failed' : 'Processing'}
                     </span>
                   </div>
 
@@ -384,20 +407,35 @@ const Dashboard = ({setIsLoading}) => {
 
                 {/* Mobile Action Triggers */}
                 <div className="flex gap-3 pt-2 justify-end border-t border-zinc-100/10 dark:border-zinc-800/50">
-                  <button 
-                    onClick={async () => { 
-                      const d = item.private ? await makePublic(item.id) : await makePrivate(item.id);
-                      if(d) {
-                        setVideos(state => state.map((thisItem) => 
-                          thisItem.id === item.id ? { ...thisItem, private: !thisItem.private } : thisItem
-                        ));
-                      }
-                    }}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-3 py-1.5 rounded-md font-medium text-xs transition-colors cursor-pointer"
-                  >
-                    {item.private ? 'Make Public' : 'Make Private'}
-                  </button>
-                  {item.processed && (
+                  {item.processed === "FAILED" ? (
+                    <button 
+                      onClick={async () => {
+                        setIsLoading(true);
+                        // await retryVideoProcessing(item.id);
+                        await seeOwnerVideos(setVideos);
+                        setIsLoading(false);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      🔄 Retry
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={async () => { 
+                        const d = item.private ? await makePublic(item.id) : await makePrivate(item.id);
+                        if(d) {
+                          setVideos(state => state.map((thisItem) => 
+                            thisItem.id === item.id ? { ...thisItem, private: !thisItem.private } : thisItem
+                          ));
+                        }
+                      }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-3 py-1.5 rounded-md font-medium text-xs transition-colors cursor-pointer"
+                    >
+                      {item.private ? 'Make Public' : 'Make Private'}
+                    </button>
+                  )}
+                  
+                  {(item.processed === "TRUE" || item.processed === "FAILED") && (
                     <button 
                       onClick={async () => {
                         const d = await deleteVideo(item.id);
@@ -422,7 +460,6 @@ const Dashboard = ({setIsLoading}) => {
     </div>
   </div>
 )}
-
         
 
       </div>

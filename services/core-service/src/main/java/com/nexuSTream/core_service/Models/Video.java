@@ -9,6 +9,8 @@ import jakarta.annotation.Nullable;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 // import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -22,11 +24,9 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
 @Entity
 @Table(name = "videos")
 @Getter @Setter @NoArgsConstructor
-// @EntityListeners(VideoEntityListener.class)
 public class Video {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,7 +43,9 @@ public class Video {
     @Nullable
     private String videoUrl=null;
 
-    private boolean processed = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "processed", nullable = false)
+    private ProcessingStatus processed = ProcessingStatus.FALSE;
 
     private long viewCount=0;
 
@@ -53,10 +55,14 @@ public class Video {
 
     private String description="new video description";
     private LocalDateTime createdAt;
+ 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
+
+    @Column(name = "video_size", nullable = false)
+    private Long videoSize;
 
     //mapped by uses the var name of video in VideoLike table
     @OneToMany(mappedBy = "video" , cascade = CascadeType.ALL, fetch = FetchType.LAZY)

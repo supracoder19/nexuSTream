@@ -111,7 +111,6 @@ const videoWatch = async (videoId) => {
     const res = await axios.get(`${core_api}video/watch/${videoId}`, {
       withCredentials: true // Included to match your upload configuration for session/auth
     });
-console.log(res);
 
     if (res.data.success) {
       // Assuming the backend returns the video details or a playback URL

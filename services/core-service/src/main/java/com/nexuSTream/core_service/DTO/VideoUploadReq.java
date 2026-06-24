@@ -9,6 +9,6 @@ public class VideoUploadReq {
         private String thumbnailType;
         private String title;
         private String description;
-        private String videoSize;
+        private Long videoSize;
         private String thumbnailSize;
 }

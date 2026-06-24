@@ -3,8 +3,10 @@ import fs from "fs"
 import { fileURLToPath } from "url";
 import { analyzeVideo } from '../utils/video-analyzer.js'
 import { transcodeToHLS } from '../services/ffmpeg.service.js';
-import { downloadFromS3, uploadFolderToS3, deleteFromS3 } from '../services/s3.service.js';
+import { downloadFromS3, uploadFolderToS3,checkKeyExists } from '../services/s3.service.js';
 import { pushTask } from "../services/RedisService.js"
+import { convertToWebpAndReplace } from "../utils/image-converter.js";
+
 
 const topicForProcessed = process.env.TOPIC_VIDEO_PROCESSED
 
@@ -20,15 +22,28 @@ const processVideoJob = async (videoData) => {
 
   try {
     console.log(`========== Starting Processing Job: ${videoKey} ==========`);
-
+    if(await checkKeyExists(videoId+"_processed/master.m3u8"))
+    {
+      const msg =
+    {
+      "topic": topicForProcessed,
+      "event":
+      {
+        key: videoId,
+        value: `${videoId}/processed`
+      }
+    }
+    await pushTask(topicForProcessed, msg)
+    throw new Error("video already processed")
+    }
+    
     //thumbnail processing
     await downloadFromS3(thumbnailKey, localOutputPathThumbnail);
-
+    await convertToWebpAndReplace(localOutputPathThumbnail)
 
     // 1. Fetch raw asset from Cloud
     console.log(`Downloading input video from S3: ${videoKey}...`);
     await downloadFromS3(videoKey, localInputPath);
-    await downloadFromS3(thumbnailKey,localOutputPathThumbnail);
 
     // 2. Extract technical metrics
     const metadata = await analyzeVideo(localInputPath);
@@ -43,8 +58,6 @@ const processVideoJob = async (videoData) => {
     console.log(`Uploading output manifest and segments to S3 prefix: ${s3OutputPrefix}...`);
     await uploadFolderToS3(localOutputDir, s3OutputPrefix);
 
-    console.log(`Deleting from S3: ${videoId}...`);
-    await deleteFromS3(videoId)
     const msg =
     {
       "topic": topicForProcessed,

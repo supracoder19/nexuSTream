@@ -32,6 +32,11 @@ public class VideoController {
         ResponseObject<?> res= vserve.videoUpload(req);
         return ResponseEntity.ok(res);
     }
+    @PostMapping("/retryProcessing/{videoId}")
+    public ResponseEntity<?> videoUploadFailed(@PathVariable(name="videoId") Long videoId) {
+        ResponseObject<?> res= vserve.retryProcessing(videoId);
+        return ResponseEntity.ok(res);
+    }
     @PostMapping("/uploaded")
     public ResponseEntity<?> signalForprocessing(@RequestBody Map<String,String> req) {
         // ResponseObject<Channel> res=new ResponseObject<>();
@@ -80,11 +85,5 @@ public class VideoController {
         return ResponseEntity.ok(vserve.commentOnVideo(Long.valueOf(mp.get("videoId")),mp.get("content")));
     }
     
-    
-    // @PostMapping("/processed")
-    // public ResponseEntity<?> webHookForProcessed(@RequestHeader(value="token",required = true) String token,@RequestBody Map<String,String> req) {
-    //     ResponseObject<String> res=vserve.finishedProcessing(token,req);
-    //     return ResponseEntity.ok(res);
-    // }
 }
  

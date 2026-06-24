@@ -1,4 +1,4 @@
-import { ListObjectsV2Command,S3Client, GetObjectCommand, PutObjectCommand,DeleteObjectsCommand }  from '@aws-sdk/client-s3'
+import { ListObjectsV2Command,S3Client, GetObjectCommand, PutObjectCommand,DeleteObjectsCommand,HeadObjectCommand }  from '@aws-sdk/client-s3'
 import path from "path"
 import fs from "fs"
 import { Readable } from 'stream'
@@ -10,16 +10,6 @@ const s3 = new S3Client({
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
-
-const s3Old = new S3Client({
-  region: process.env.AWS_REGION_old || 'us-east-1', // MinIO requires a placeholder region
-  endpoint: process.env.AWS_S3_ENDPOINT_old,          // e.g., http://localhost:9000 or http://minio:9000
-  forcePathStyle: true,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID_old,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_old,
   },
 });
 /**
@@ -124,43 +114,27 @@ const uploadFolderToS3 = async (localFolderPath, s3FolderPrefix) => {
   
   console.log('All transcode assets successfully synced to the cloud bucket.');
 };
-const deleteFromS3 = async (videoId) => {
-  const bucketName = process.env.AWS_S3_BUCKET_old;
-  // Ensure the folder prefix ends with a slash so you don't accidentally 
-  // delete "26_processed_backup" when trying to delete "26_processed"
-  const folderPrefix = videoId.endsWith('/') ? videoId : `${videoId}/`;
 
+const checkKeyExists = async (s3Key) => {
   try {
-    // 1. List all objects inside the "folder"
-    const listCommand = new ListObjectsV2Command({
-      Bucket: bucketName,
-      Prefix: folderPrefix,
-    });
-
-    const listedObjects = await s3Old.send(listCommand);
-
-    // If the folder is already empty, we're done
-    if (!listedObjects.Contents || listedObjects.Contents.length === 0) {
-      console.log(`Folder ${folderPrefix} is already empty or doesn't exist.`);
-      return;
-    }
-
-    // 2. Prepare the batch of objects to delete
-    const deleteParams = {
-      Bucket: bucketName,
-      Delete: {
-        Objects: listedObjects.Contents.map(({ Key }) => ({ Key }))
-      }
-    };
-
-    // 3. Execute the batch delete command
-    await s3Old.send(new DeleteObjectsCommand(deleteParams));
-    
-    console.log(`Successfully deleted virtual folder structure: ${folderPrefix}`);
-
+    await s3.send(
+      new HeadObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: s3Key,
+      })
+    );
+    // If the command succeeds, the object exists
+    return true;
   } catch (error) {
-    console.error(`Failed to delete folder ${videoId} from S3:`, error);
+    // If S3 returns a 404 (Not Found), the key does not exist
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    
+    // If it's a different error (e.g., 403 Forbidden, Network issues), rethrow it
+    console.error(`Error verifying S3 key existence for "${s3Key}":`, error.message);
     throw error;
   }
 };
-export { downloadFromS3, uploadFolderToS3, deleteFromS3 };
+
+export { downloadFromS3, uploadFolderToS3,checkKeyExists };

@@ -1,3 +1,5 @@
+import { AwsClient } from 'aws4fetch';
+
 function base64UrlDecode(str) {
   let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
   while (base64.length % 4) {
@@ -14,7 +16,6 @@ async function verifyAndGetPayload(token, secretStr) {
     if (parts.length !== 3) return null;
     const [headerB64, payloadB64, signatureB64] = parts;
 
-    // 1. Decode Base64 Secret string to match Java's Decoders.BASE64.decode
     let normalizedSecret = secretStr.trim().replace(/-/g, '+').replace(/_/g, '/');
     while (normalizedSecret.length % 4) {
       normalizedSecret += '=';
@@ -25,7 +26,6 @@ async function verifyAndGetPayload(token, secretStr) {
       secretKeyData[i] = secretBinary.charCodeAt(i);
     }
 
-    // 2. Import CryptoKey matching backend HS384 algorithm scale
     const cryptoKey = await crypto.subtle.importKey(
       "raw",
       secretKeyData,
@@ -34,7 +34,6 @@ async function verifyAndGetPayload(token, secretStr) {
       ["verify"]
     );
 
-    // 3. Process Signature Array
     let base64Sig = signatureB64.replace(/-/g, '+').replace(/_/g, '/');
     while (base64Sig.length % 4) {
       base64Sig += '=';
@@ -42,13 +41,11 @@ async function verifyAndGetPayload(token, secretStr) {
     const signatureBinary = atob(base64Sig);
     const signature = Uint8Array.from(signatureBinary, c => c.charCodeAt(0));
 
-    // 4. Verify cryptographic authenticity
     const encoder = new TextEncoder();
     const dataToVerify = encoder.encode(`${headerB64}.${payloadB64}`);
     const isValid = await crypto.subtle.verify("HMAC", cryptoKey, signature, dataToVerify);
     if (!isValid) return null;
 
-    // 5. Decode Payload and validate expiration bounds
     let base64Payload = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
     while (base64Payload.length % 4) {
       base64Payload += '=';
@@ -92,50 +89,96 @@ export default {
     }
 
     const url = new URL(request.url);
-    if(url.toString().endsWith(".m3u8"))
-    {const queryToken = url.searchParams.get("token");
-    const cookieToken = getCookie(request, "accessToken");
     
-    const queryPayload = await verifyAndGetPayload(queryToken, env.JWT_SECRET);
-    const cookiePayload = await verifyAndGetPayload(cookieToken, env.JWT_SECRET);
-    
-    if (!queryPayload || !cookiePayload) {
-      return new Response("Unauthorized: Missing or invalid authentication tokens", { status: 401 });
+    // 1. Verify Access if target is an HLS playlist tracker (.m3u8)
+    if (url.toString().endsWith(".m3u8")) {
+      const queryToken = url.searchParams.get("token");
+      const cookieToken = getCookie(request, "accessToken");
+      
+      const queryPayload = await verifyAndGetPayload(queryToken, env.JWT_SECRET);
+      const cookiePayload = await verifyAndGetPayload(cookieToken, env.JWT_SECRET);
+      
+      if (!queryPayload || !cookiePayload) {
+        return new Response("Unauthorized: Missing or invalid authentication tokens", { status: 401 });
+      }
+
+      const queryUser = queryPayload.sub || queryPayload.username;
+      const cookieUser = cookiePayload.sub || cookiePayload.username;
+
+      if (!queryUser || !cookieUser || queryUser !== cookieUser) {
+        return new Response("Forbidden: Token identity mismatch", { status: 403 });
+      }
+    }
+    else if (url.toString().endsWith(".webp")) {
+      const cookieToken = getCookie(request, "accessToken");
+      
+      const cookiePayload = await verifyAndGetPayload(cookieToken, env.JWT_SECRET);
+      
+      if ( !cookiePayload) {
+        return new Response("Unauthorized: Missing or invalid authentication tokens", { status: 401 });
+      }
     }
 
-    const queryUser = queryPayload.sub || queryPayload.username;
-    const cookieUser = cookiePayload.sub || cookiePayload.username;
-
-    if (!queryUser || !cookieUser || queryUser !== cookieUser) {
-      return new Response("Forbidden: Token identity mismatch", { status: 403 });
-    }}
-
-    // Prepare clean URL params and forward proxy properties
+    // 2. Prepare clean URL params for storage fetch layer
     url.searchParams.delete("token");
     const baseBackendUrl = env.B2_URL.replace(/\/$/, '');
-    const targetFetchUrl = `${baseBackendUrl}${url.pathname}${url.search}`;
+    const targetFetchUrl = `${baseBackendUrl}/${env.B2_INPUT_BUCKET}${url.pathname}`;
 
-    // Reconstruct clean backend request headers
-    const proxyHeaders = new Headers(request.headers);
-    proxyHeaders.delete("Host");
-
-    const backendResponse = await fetch(targetFetchUrl, {
-      method: request.method,
-      headers: proxyHeaders
+    console.log(targetFetchUrl);
+    
+    // 3. Initialize the S3-Compatible Request Signer for B2
+    const aws = new AwsClient({
+      accessKeyId: env.B2_INPUT_ACCESS_KEY_ID,
+      secretAccessKey: env.B2_INPUT_SECRET_ACCESS_KEY,
+      service: 's3',
+      region: env.B2_INPUT_REGION
     });
 
-    // Mirror upstream responses with optimal frontend runtime CORS rules
-    const response = new Response(backendResponse.body, backendResponse);
-    const clientOrigin = request.headers.get("Origin");
-    
-    if (clientOrigin) {
-      response.headers.set("Access-Control-Allow-Origin", clientOrigin);
-      response.headers.set("Access-Control-Allow-Credentials", "true");
-    } else {
-      response.headers.set("Access-Control-Allow-Origin", "*");
-    }
-    response.headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    /// 4. Clean up headers to drop missing properties safely before passing to aws4fetch
+    const requestHeaders = {
+      "Accept": request.headers.get("Accept") || "*/*",
+    };
 
-    return response;
+    // Only attach Range header if it actually exists in the incoming request
+    const incomingRange = request.headers.get("Range");
+    if (incomingRange) {
+      requestHeaders["Range"] = incomingRange;
+    }
+
+    // 5. Fetch response from B2
+    const backendResponse = await aws.fetch(targetFetchUrl, {
+      method: request.method,
+      headers: requestHeaders
+    });
+
+    // 6. Create a fresh header map based on the backend response
+    const corsHeaders = new Headers();
+
+    // Copy vital structural headers if they exist
+    const headersToCopy = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'cache-control', 'last-modified'];
+    headersToCopy.forEach(header => {
+      const val = backendResponse.headers.get(header);
+      if (val) corsHeaders.set(header, val);
+    });
+
+    // 7. FORCE inject CORS headers explicitly (Crucial for 304 / 206 / 200 statuses alike)
+    const clientOrigin = request.headers.get("Origin");
+    if (clientOrigin) {
+      corsHeaders.set("Access-Control-Allow-Origin", clientOrigin);
+      corsHeaders.set("Access-Control-Allow-Credentials", "true");
+    } else {
+      corsHeaders.set("Access-Control-Allow-Origin", "*");
+    }
+    
+    corsHeaders.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    corsHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie, Range");
+    corsHeaders.set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges");
+
+    // 8. Return with matching backend status codes intact
+    return new Response(backendResponse.status === 304 ? null : backendResponse.body, {
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+      headers: corsHeaders
+    });
   }
 };

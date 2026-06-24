@@ -13,8 +13,10 @@ export default {
     }
 
     // 2. Direct Backend Mapping to Private B2 Input Bucket
-    const targetStorageUrl = `${env.B2_INPUT_ORIGIN}${url.pathname}`;
+    const targetStorageUrl = `${env.B2_INPUT_ORIGIN}/${env.B2_INPUT_BUCKET}${url.pathname}`;
 
+    console.log(targetStorageUrl);
+    
     // 3. Initialize S3 client for the Private Input Bucket
     const aws = new AwsClient({
       accessKeyId: env.B2_INPUT_ACCESS_KEY_ID,

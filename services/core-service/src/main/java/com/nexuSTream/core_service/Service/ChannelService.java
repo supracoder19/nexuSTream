@@ -18,6 +18,7 @@ import com.nexuSTream.core_service.DTO.VideoListProjection;
 import com.nexuSTream.core_service.Models.Channel;
 import com.nexuSTream.core_service.Models.CustomUniqueId;
 import com.nexuSTream.core_service.Models.Notification;
+import com.nexuSTream.core_service.Models.ProcessingStatus;
 import com.nexuSTream.core_service.Models.Subscriber;
 import com.nexuSTream.core_service.Models.User;
 // import com.nexuSTream.core_service.Models.Channel;
@@ -73,7 +74,7 @@ public class ChannelService {
             if (s==null) {
                 subscribed=false;
             }
-            List<VideoListProjection> l=vrepo.fetchCustomVideoList(result.getId(),false,true);
+            List<VideoListProjection> l=vrepo.fetchCustomVideoList(result.getId(),false,ProcessingStatus.TRUE);
             ChannelDescriptionResponse res1= new ChannelDescriptionResponse(result.getId(),result.getChannelName(),subscribed,result.getDescription(),result.getSubscriberCount(),l) ;
             res.setData(List.of(res1));
         } catch (Exception e) {

@@ -34,7 +34,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         return path.equals("/auth/login") || 
                path.equals("/auth/refresh") || 
                path.equals("/auth/register")||
-               path.equals("/auth/viewCount");
+               path.equals("/auth/viewCount")||
+               path.equals("/health-check");
     }
 
     @Override
@@ -53,10 +54,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String jwt = authHeader;
             String username = jwtUtils.extractUsername(jwt);
             // If we have a username and the user isn't authenticated yet in this request loop
+            System.out.println(jwt);
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                System.out.println(username);
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                    System.out.println(userDetails+"working ");
                 
                 if (jwtUtils.isTokenValid(jwt, userDetails)) {
+                    System.out.println(userDetails+"helloooo ");
                     // Create an authentication token object
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()

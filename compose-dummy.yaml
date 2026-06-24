@@ -50,7 +50,7 @@ services:
     ports:
       - "8787:8787"
     volumes:
-      - ./services/cloudfare-worker:/app
+      - ./services/cloudfare-worker:/app/cloudfare-worker
       - /app/node_modules
     networks:
       - nexus-network
@@ -61,7 +61,7 @@ services:
     ports:
       - "8788:8788"
     volumes:
-      - ./services/cloudfare-worker-2:/app
+      - ./services/cloudfare-worker-2:/app/cloudfare-worker-2
       - /app/node_modules
     networks:
       - nexus-network
@@ -135,6 +135,7 @@ services:
     volumes:
       - ./services/video-processor/:/app/video-processor/
       - /app/video-processor/node_modules
+      - /app/video-processor/temp-storage
     env_file:
       - ./services/video-processor/.env.dummy
     networks:
@@ -153,7 +154,7 @@ services:
       /bin/sh -c "
       until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'Waiting for MinIO...'; sleep 1; done;
       /usr/bin/mc mb myminio/nexustream --ignore-existing;
-      /usr/bin/mc anonymous set download myminio/nexustream;
+      /usr/bin/mc anonymous set private myminio/nexustream;
       exit 0;
       "
     networks:
@@ -181,7 +182,6 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: pgadmin-service
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@gmail.com
       PGADMIN_DEFAULT_PASSWORD: 1234
@@ -189,6 +189,8 @@ services:
       - "10025:80"
     networks:
       - nexus-network
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
     depends_on:
       db-service:
         # Ensures pgAdmin won't start until Postgres passes its healthcheck
@@ -200,6 +202,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+  redirect-service:
+    build:
+      context: ./services/redirect-service
+      dockerfile: dockerfile
+    ports:
+      - "10027:10027"
+    volumes:
+      - ./services/redirect-service/:/app/redirect-service/
+      - /app/redirect-service/node_modules
+    env_file:
+      - ./services/redirect-service/.env.dummy
+    networks:
+      - nexus-network
+    command: npm run dev
+
+    
+
+
 networks:
   nexus-network:
     driver: bridge
@@ -209,3 +229,4 @@ volumes:
   redis_data:
   minio_data:
   kafka_data:
+  pgadmin-data:

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.nexuSTream.core_service.DTO.VideoListProjection;
+import com.nexuSTream.core_service.Models.ProcessingStatus;
 import com.nexuSTream.core_service.Models.Video;
 
 @Repository
@@ -40,7 +41,7 @@ List<VideoListProjection> fetchCustomVideoListOwner(Long channelId);
             " v.processed = :showProcessed and " +
             " v.isPrivate = :showPrivate " +
             "GROUP BY v.id")
-    List<VideoListProjection> fetchCustomVideoList(Long channelId,boolean showPrivate, boolean showProcessed);
+    List<VideoListProjection> fetchCustomVideoList(Long channelId,boolean showPrivate, ProcessingStatus showProcessed);
     @Query("SELECT v.id AS id, " +
            "v.thumbnailUrl AS thumbnailUrl, " +
            "v.title AS title, " +
@@ -51,7 +52,10 @@ List<VideoListProjection> fetchCustomVideoListOwner(Long channelId);
            "v.viewCount AS viewCount " +
            "FROM Video v " +
            "LEFT JOIN v.likes l " +
-           "WHERE v.isPrivate = false AND v.processed = true " +
+           "WHERE v.isPrivate = false AND v.processed = :status " +
            "GROUP BY v.id, v.thumbnailUrl, v.title, v.createdAt, v.isPrivate, v.processed, v.viewCount")
-    Page<VideoListProjection> fetchDiscoverableVideosPaged(Pageable pageable);
+    Page<VideoListProjection> fetchDiscoverableVideosPaged(Pageable pageable,ProcessingStatus status);
+    // Sum of all active (non-deleted) videos
+    @Query("SELECT COALESCE(SUM(v.videoSize), 0) FROM Video v")
+    long getTotalVideoSize();
 }

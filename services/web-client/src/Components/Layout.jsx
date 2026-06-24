@@ -61,8 +61,10 @@ const Layout = ({  isDarkMode, setIsDarkMode }) => {
 
     socketInstance.on('notification', (data) => {
       // Prepend the incoming event to state, capping view array at 5 elements
+      console.log(data);
+      
       setNotifications((prev) => [data, ...prev].slice(0, 5));
-      setUnreadCount((prev) => prev=="5+" ? "5+" : prev+1)
+      setUnreadCount((prev) => prev=="5+" ? "5+" : (Number(prev)+1).toString())
       toast.info("new notification")
     });
 

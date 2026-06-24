@@ -45,7 +45,7 @@ const handleTasks = async (io,event)=>
             subscriberIds.forEach((subId) => {
               io.to(`user:${subId}`).emit('notification', {
                 type: 'NEW_VIDEO',
-                message: `Channels you follow: A new video ${videoTitle} was just uploaded by ${actorName}!`,
+                content: `Channels you follow: A new video ${videoTitle} was just uploaded by ${actorName}!`,
             createdAt: new Date()
               });
             });
