@@ -5,6 +5,7 @@ services:
     build:
       context: ./services/core-service
       dockerfile: dockerfile
+      target: development
     ports:
       - "3000:10000"
     depends_on:
