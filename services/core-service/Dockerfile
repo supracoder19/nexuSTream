@@ -11,6 +11,10 @@ RUN mvn dependency:go-offline -B
 # Copy the rest of the source code
 COPY . .
 
+# RUN THE COMPILATION HERE (Inside Stage 1 where Maven exists)
+# This creates the target/core-service-0.0.1-SNAPSHOT.jar file
+RUN mvn clean package -DskipTests
+
 # Expose standard local port
 EXPOSE 8080
 
@@ -24,10 +28,7 @@ CMD ["mvn", "spring-boot:run"]
 FROM eclipse-temurin:17-jre-jammy AS production
 WORKDIR /app
 
-# Compile the final jar inside the builder stage environment
-RUN mvn clean package -DskipTests -f /app/pom.xml
-
-# Copy only the built binary artifact
+# Copy the pre-built jar file directly from the development stage filesystem
 COPY --from=development /app/target/*.jar app.jar
 
 EXPOSE 8080
