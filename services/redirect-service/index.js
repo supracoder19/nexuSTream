@@ -1,9 +1,19 @@
 const express = require("express")
+const express = require("cors")
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const allowedOrigin = process.env.ALLOWED_ORIGIN || 3000;
 
 const WORKER_DOMAIN = process.env.WORKER_DOMAIN; // e.g., "https://video.xxx"
+
+app.use(cors({
+    origin: allowedOrigin,
+    methods: ['GET', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Range'],
+    exposedHeaders: ['Content-Length', 'Content-Range'], // Vital for video streaming seek bars
+    credentials: true
+}));
 
 if (!WORKER_DOMAIN) {
   console.error("CRITICAL ERROR: Missing TRANSCODER_SECRET or WORKER_DOMAIN in environment variables.");
