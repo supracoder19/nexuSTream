@@ -137,7 +137,6 @@ const VPlayer = ({ setIsLoading }) => {
                     className="vds-poster object-contain"
                     src={thumbnailSrc}
                     alt={title}
-                    crossOrigin="use-credentials"
                   />
                 )}
               </MediaProvider>
