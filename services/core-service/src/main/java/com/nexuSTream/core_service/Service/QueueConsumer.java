@@ -89,7 +89,7 @@ public class QueueConsumer implements CommandLineRunner {
 
             // Using a 5-second timeout so the thread periodically wakes up 
             // and can cleanly exit if the app is shutting down.
-            String result = queue.opsForList().rightPop(queueKey, Duration.ofSeconds(5));
+            String result = queue.opsForList().rightPop(queueKey, Duration.ofSeconds(60));
 
             if (result != null) {
                 QueueMessage<?> msg = mapper.readValue(result, QueueMessage.class);

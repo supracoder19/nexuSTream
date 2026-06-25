@@ -7,10 +7,12 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "dev": "npx wrangler dev index.js --ip 0.0.0.0 --port 8787 --local"
+    "dev": "npx wrangler dev index.js --ip 0.0.0.0 --port 8787 --local --compatibility-date=2026-06-24"
   },
   "dependencies": {
-    "aws4fetch": "^1.0.20",
-    "wrangler": "^4.103.0"
+    "aws4fetch": "^1.0.20"
+  },
+  "devDependencies": {
+    "wrangler": "^4.104.0"
   }
 }

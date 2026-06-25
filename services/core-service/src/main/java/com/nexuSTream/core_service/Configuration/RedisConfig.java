@@ -23,7 +23,7 @@ public class RedisConfig {
      */
     private LettuceClientConfiguration createLettuceClientConfig() {
         LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder()
-                .commandTimeout(Duration.ofSeconds(5)); // Prevents infinite thread blocking on Render
+                .commandTimeout(Duration.ofSeconds(90)); // Prevents infinite thread blocking on Render
 
         if (!"development".equalsIgnoreCase(springEnv)) {
             builder.useSsl(); // Properly triggers rediss:// for Upstash
