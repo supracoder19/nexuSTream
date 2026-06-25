@@ -1,5 +1,5 @@
 const express = require("express")
-const express = require("cors")
+const cors = require("cors")
 
 const app = express();
 const PORT = process.env.PORT || 3000;
