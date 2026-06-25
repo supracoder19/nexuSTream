@@ -43,18 +43,18 @@ public class AuthController {
         
         ResponseCookie cookie = ResponseCookie.from("refreshToken", ob.getData().get(0).get("refreshToken").trim())
                 .httpOnly(true)                    // Prevents JavaScript access (XSS protection)
-                .secure(true)                      // Forces HTTPS connection
+                // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
                 .maxAge(7 * 24 * 60 * 60)          // Expiration in seconds (e.g., 7 days)
-                .sameSite("none")                 
+                .sameSite("lax")                 
                 .build();
 
         ResponseCookie accCookie = ResponseCookie.from("accessToken",ob.getData().get(0).get("accessToken").trim())
                 .httpOnly(true)                    // Prevents JavaScript access (XSS protection)
-                .secure(true)                      // Forces HTTPS connection
+                // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
                 .maxAge(15 * 60)          // Expiration in seconds (e.g., 15min)
-                .sameSite("none")                   
+                .sameSite("lax")                   
                 .build();
         ob.setData(null);
         // 3. Add the cookie to the response headers
@@ -78,10 +78,10 @@ public class AuthController {
         {
             ResponseCookie accCookie = ResponseCookie.from("accessToken",res.getData().get(0).get("accessToken"))
                 .httpOnly(true)                    // Prevents JavaScript access (XSS protection)
-                .secure(true)                      // Forces HTTPS connection
+                // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
                 .maxAge(15 * 60 )          // Expiration in seconds (e.g., 7 days)
-                .sameSite("none")               
+                .sameSite("lax")               
                 .build();
             res.getData().get(0).remove("accessToken");
             return ResponseEntity.ok()

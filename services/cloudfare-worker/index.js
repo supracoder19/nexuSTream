@@ -79,18 +79,6 @@ async function verifyAndGetPayload(token, secretStr) {
   }
 }
 
-function getCookie(request, name) {
-  const cookieString = request.headers.get("Cookie");
-  if (!cookieString) return null;
-
-  const cookies = cookieString.split(";");
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split("=");
-    if (key === name) return decodeURIComponent(value);
-  }
-  return null;
-}
-
 export default {
   async fetch(request, env, ctx) {
     // Sanitize the raw incoming URL by decoding components and removing ALL hidden whitespace chunks (\s+)
@@ -104,7 +92,7 @@ export default {
           "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
           "Access-Control-Allow-Credentials": "true",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie, Range",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, Range",
         }
       });
     }
@@ -112,36 +100,24 @@ export default {
     // Instantiating URL tracking using our cleanly stripped workspace URL
     const url = new URL(cleanUrlString);
     
-    // 1. Authentication Checks (Only enforced for streaming manifest entry points)
+    // 1. Authentication Checks (Only enforced for streaming manifest entry points via query token)
     if (url.pathname.endsWith(".m3u8")) {
-      console.log("[DEBUG AUTH] .m3u8 manifest route detected. Validating session tokens...");
+      console.log("[DEBUG AUTH] .m3u8 manifest route detected. Validating query token...");
       
       const queryToken = url.searchParams.get("token");
-      const cookieToken = getCookie(request, "accessToken");
-      
-      console.log(`[DEBUG AUTH] Token extraction -> Query: ${!!queryToken}, Cookie: ${!!cookieToken}`);
+      console.log(`[DEBUG AUTH] Query token parameter present: ${!!queryToken}`);
 
       const queryPayload = await verifyAndGetPayload(queryToken, env.JWT_SECRET);
-      const cookiePayload = await verifyAndGetPayload(cookieToken, env.JWT_SECRET);
       
-      if (!queryPayload && !cookiePayload) {
-        console.warn("[DEBUG AUTH] Access Denied: No valid validation path checked out.");
+      if (!queryPayload) {
+        console.warn("[DEBUG AUTH] Access Denied: Query token verification failed or token expired.");
         return new Response("Unauthorized: Invalid token session", { 
           status: 401,
-          headers: { "X-Debug-Reason": "Auth-Failure-Invalid-Tokens" }
+          headers: { "X-Debug-Reason": "Auth-Failure-Invalid-Query-Token" }
         });
       }
 
-      const activePayload = queryPayload || cookiePayload;
-      const userIdent = activePayload.sub || activePayload.username || activePayload.userId;
-      console.log(`[DEBUG AUTH] Identity verified successfully for: ${userIdent}`);
-
-      if (!userIdent) {
-        return new Response("Forbidden: Identity context missing", { 
-          status: 403,
-          headers: { "X-Debug-Reason": "Auth-Failure-Identity-Null" }
-        });
-      }
+      console.log("[DEBUG AUTH] Query token cryptographic signature verified successfully.");
     }
 
     // 2. Generate Custom Cache Key Namespace Rewrite
@@ -228,7 +204,7 @@ export default {
       corsHeaders.set("Access-Control-Allow-Origin", "*");
     }
     corsHeaders.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-    corsHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie, Range");
+    corsHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range");
     corsHeaders.set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, X-Cache-Status");
     corsHeaders.set("X-Cache-Status", "MISS");
 

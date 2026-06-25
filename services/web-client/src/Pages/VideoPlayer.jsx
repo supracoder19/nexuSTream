@@ -86,7 +86,7 @@ const VPlayer = ({ setIsLoading }) => {
         xhr.open("GET", finalUrl, true);
 
         // Required to let cookies pass through via cross-origin requests
-        xhr.withCredentials = true;
+        // xhr.withCredentials = true;
       }
     };
   }
