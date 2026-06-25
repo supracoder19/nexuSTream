@@ -118,8 +118,8 @@ public class AuthService {
         try {
             User user = urepo.findByUsername(String.valueOf(jwtUtils.extractUsername(refreshToken)))
                     .orElseThrow(() -> new Exception("User not found!!!"));
-
             String redtoken = red.getAuthData(user.getUsername());
+            System.out.println(refreshToken+"\n"+redtoken);
             if(!redtoken.equals(refreshToken)) throw new Exception("user unauthorized");
             ob.setSuccess(true);
             ob.setMsg("User authorized");

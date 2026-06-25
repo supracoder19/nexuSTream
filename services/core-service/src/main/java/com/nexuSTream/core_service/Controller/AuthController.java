@@ -72,7 +72,7 @@ public class AuthController {
         return ResponseEntity.ok(ob);
     }
     @GetMapping("/refresh")
-    public ResponseEntity<ResponseObject<?>> refresh(@CookieValue(name ="refreshToken", required = false) String refreshToken,@CookieValue(name ="accessToken", required = false) String accessToken) {
+    public ResponseEntity<ResponseObject<?>> refresh(@CookieValue(name ="refreshToken", required = true) String refreshToken,@CookieValue(name ="accessToken", required = false) String accessToken) {
         ResponseObject<HashMap<String,String>> res=auth.refreshService(refreshToken,accessToken);
         if(res.getSuccess())
         {

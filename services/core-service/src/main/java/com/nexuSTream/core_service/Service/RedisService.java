@@ -26,12 +26,12 @@ public class RedisService {
         auth.opsForValue().set(key,value);
     }
 
-    @Cacheable(value = "refresToken", key = "#key")
+    @Cacheable(value = "refreshToken", key = "#key")
     public String getAuthData(String key) {
         return auth.opsForValue().get(key);
     }
 
-    @CacheEvict(value = "refresToken", key = "#key")
+    @CacheEvict(value = "refreshToken", key = "#key")
     public void deleteAuthData(String key)
     {
         auth.delete(key);
