@@ -12,7 +12,7 @@ const redis = new Redis(redisUri, {
         return delay;
     },
     // Required to prevent errors on some cloud environments
-    maxRetriesPerRequest: 3 
+    maxRetriesPerRequest: null 
 });
 
 redis.on('connect', () => console.log('Successfully connected to Upstash Redis!'));

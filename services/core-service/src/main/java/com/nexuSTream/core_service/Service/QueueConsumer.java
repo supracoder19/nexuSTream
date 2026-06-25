@@ -42,6 +42,9 @@ public class QueueConsumer implements CommandLineRunner {
     @Value("${topic.video.processed}")
     private String videoProcessedTopic;
 
+    @Value("${VIDEO_BASE_URL}")
+    private String videoBase;
+
     @Value("${topic.notification}")
     private String notificationTopic;
 
@@ -79,55 +82,55 @@ public class QueueConsumer implements CommandLineRunner {
     }
 
     private void consumeQueue(String queueKey, String topicType) {
-    while (!Thread.currentThread().isInterrupted()) {
-        try {
-            // Guard check: If Spring cleared the factory entirely
-            if (queue.getConnectionFactory() == null) {
-                System.out.println("Redis factory is null. Exiting loop for " + topicType);
-                break;
-            }
-
-            // Using a 5-second timeout so the thread periodically wakes up 
-            // and can cleanly exit if the app is shutting down.
-            String result = queue.opsForList().rightPop(queueKey, Duration.ofSeconds(60));
-
-            if (result != null) {
-                QueueMessage<?> msg = mapper.readValue(result, QueueMessage.class);
-                processMessage(msg);
-            }
-        } catch (org.springframework.data.redis.RedisConnectionFailureException e) {
-            System.err.println("Redis connection missing for " + topicType + ", retrying in 2 seconds...");
+        while (!Thread.currentThread().isInterrupted()) {
             try {
-                Thread.sleep(2000);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
+                // Guard check: If Spring cleared the factory entirely
+                if (queue.getConnectionFactory() == null) {
+                    System.out.println("Redis factory is null. Exiting loop for " + topicType);
+                    break;
+                }
+
+                // Using a 5-second timeout so the thread periodically wakes up
+                // and can cleanly exit if the app is shutting down.
+                String result = queue.opsForList().rightPop(queueKey, Duration.ofSeconds(60));
+
+                if (result != null) {
+                    QueueMessage<?> msg = mapper.readValue(result, QueueMessage.class);
+                    processMessage(msg);
+                }
+            } catch (org.springframework.data.redis.RedisConnectionFailureException e) {
+                System.err.println("Redis connection missing for " + topicType + ", retrying in 2 seconds...");
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            } catch (IllegalStateException | org.springframework.dao.DataAccessResourceFailureException e) {
+                // Spring throws these when the factory is closed/destroyed mid-operation
+                String msg = e.getMessage();
+                if (msg != null && msg.contains("destroyed")) {
+                    System.out.println("LettuceConnectionFactory was destroyed. Stopping consumer for " + topicType);
+                    break; // Break the infinite loop!
+                }
+
+                // Fallback logging if it's a different state error
+                System.err.println("State error in " + topicType + ": " + msg);
+                safeSleep(1000);
+            } catch (Exception e) {
+                System.err.println("Error processing " + topicType + " task: " + e.getMessage());
+                safeSleep(1000);
             }
-        } catch (IllegalStateException | org.springframework.dao.DataAccessResourceFailureException e) {
-            // Spring throws these when the factory is closed/destroyed mid-operation
-            String msg = e.getMessage();
-            if (msg != null && msg.contains("destroyed")) {
-                System.out.println("LettuceConnectionFactory was destroyed. Stopping consumer for " + topicType);
-                break; // Break the infinite loop!
-            }
-            
-            // Fallback logging if it's a different state error
-            System.err.println("State error in " + topicType + ": " + msg);
-            safeSleep(1000);
-        } catch (Exception e) {
-            System.err.println("Error processing " + topicType + " task: " + e.getMessage());
-            safeSleep(1000);
         }
     }
-}
 
-// Small helper method to keep the catch block clean
-private void safeSleep(long millis) {
-    try {
-        Thread.sleep(millis);
-    } catch (InterruptedException ie) {
-        Thread.currentThread().interrupt();
+    // Small helper method to keep the catch block clean
+    private void safeSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
-}
 
     private void processMessage(QueueMessage<?> msg) {
         if (msg.getTopic().equals(videoProcessedTopic)) {
@@ -137,12 +140,12 @@ private void safeSleep(long millis) {
                 if (videoId != null) {
                     Video video = vrepo.findById(Long.valueOf(videoId)).orElse(null);
                     if (video != null) {
-                        String extra =  "development".equals(springEnv)?"/redirect-service/":"";
-                        String path =extra+"watch/"+videoId + "_processed/master.m3u8";
+                        String extra = "development".equals(springEnv) ? "/redirect-service/" : videoBase;
+                        String path = extra + "watch/" + videoId + "_processed/master.m3u8";
                         video.setProcessed(ProcessingStatus.TRUE);
                         video.setPrivate(false);
                         video.setVideoUrl(path);
-                        String thumbnailPath =extra+"image/"+videoId +"_processed/thumbnail/"+videoId+".webp";
+                        String thumbnailPath = extra + "image/" + videoId + "_processed/thumbnail/" + videoId + ".webp";
                         video.setThumbnailUrl(thumbnailPath);
                         vrepo.save(video);
 
@@ -199,9 +202,10 @@ private void safeSleep(long millis) {
                         video.setProcessed(ProcessingStatus.FAILED);
                         vrepo.save(video);
                         Map<String, Object> mp = new HashMap<>();
-                        User owner=video.getChannel().getOwner();
+                        User owner = video.getChannel().getOwner();
                         mp.put("videoTitle", video.getTitle());
-                        UnifiedNotificationEvent value = new UnifiedNotificationEvent("video processing failed", owner.getId(),
+                        UnifiedNotificationEvent value = new UnifiedNotificationEvent("video processing failed",
+                                owner.getId(),
                                 owner.getUsername(), srepo.findByChannelCustom(video.getChannel()), mp);
                         Event<UnifiedNotificationEvent> event2 = new Event<>("processing failed Notification", value);
                         QueueMessage<UnifiedNotificationEvent> newMsg = new QueueMessage<>(notificationTopic, event2);

@@ -60,6 +60,7 @@ public class VideoService {
     @Value("${topic.video.uploaded}")
     private String videoUploadedTopic;
 
+
     @Value("${topic.notification}")
     private String notificationTopic;
 

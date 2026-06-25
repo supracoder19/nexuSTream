@@ -22,7 +22,7 @@ async function startConsumer() {
 
         try {
             // USE THE DUPLICATE CLIENT HERE so it doesn't lock up the primary client
-            const result = await blockingRedis.brpop('queue:' + topicForVideoUploaded, 0);
+            const result = await blockingRedis.brpop('queue:' + topicForVideoUploaded, 70);
             
             if (result) {
                 const msg = JSON.parse(result[1]);

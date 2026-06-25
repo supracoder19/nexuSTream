@@ -63,7 +63,7 @@ const logout =async (navigate)=>{
     try {
         let res= await axios.get(core_api+"auth/logout",
             {
-                withCredentials:false
+                withCredentials:true
             }
         )
     } catch (error) {
