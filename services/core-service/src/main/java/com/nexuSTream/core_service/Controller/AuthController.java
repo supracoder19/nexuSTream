@@ -46,7 +46,7 @@ public class AuthController {
                 // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
                 .maxAge(7 * 24 * 60 * 60)          // Expiration in seconds (e.g., 7 days)
-                .sameSite("Lax")                   // Protects against CSRF attacks
+                .sameSite("none")                 
                 .build();
 
         ResponseCookie accCookie = ResponseCookie.from("accessToken",ob.getData().get(0).get("accessToken").trim())
@@ -54,7 +54,7 @@ public class AuthController {
                 // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
                 .maxAge(15 * 60)          // Expiration in seconds (e.g., 15min)
-                .sameSite("Lax")                   // Protects against CSRF attacks
+                .sameSite("none")                   
                 .build();
         ob.setData(null);
         // 3. Add the cookie to the response headers
@@ -80,8 +80,8 @@ public class AuthController {
                 .httpOnly(true)                    // Prevents JavaScript access (XSS protection)
                 // .secure(true)                      // Forces HTTPS connection
                 .path("/")                         // Accessible across the entire app domain
-                .maxAge(15 * 60 * 60)          // Expiration in seconds (e.g., 7 days)
-                .sameSite("Lax")                   // Protects against CSRF attacks
+                .maxAge(15 * 60 )          // Expiration in seconds (e.g., 7 days)
+                .sameSite("none")               
                 .build();
             res.getData().get(0).remove("accessToken");
             return ResponseEntity.ok()
